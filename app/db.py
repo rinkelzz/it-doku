@@ -270,11 +270,52 @@ CREATE TABLE IF NOT EXISTS deadline_sent (
 """)
 
 
+
+def _m5_scan(conn: sqlite3.Connection) -> None:
+    """Version 0.5: Netzwerk-Scan – welche Netze, Läufe, gefundene Adressen, Ignorierliste, „zuletzt online“."""
+    if "scan" not in _columns(conn, "networks"):
+        conn.execute("ALTER TABLE networks ADD COLUMN scan INTEGER NOT NULL DEFAULT 0")
+        conn.execute("ALTER TABLE networks ADD COLUMN first_scan_at TEXT")
+    if "last_seen" not in _columns(conn, "ip_addresses"):
+        conn.execute("ALTER TABLE ip_addresses ADD COLUMN last_seen TEXT")
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS scan_runs (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    trigger      TEXT NOT NULL,                 -- manual | nightly
+    started_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    started_at   TEXT NOT NULL,
+    finished_at  TEXT,
+    networks     TEXT NOT NULL DEFAULT '',       -- Namen der gescannten Netze
+    addresses    INTEGER NOT NULL DEFAULT 0,     -- geprüfte Adressen
+    hosts_up     INTEGER NOT NULL DEFAULT 0,
+    error        TEXT
+);
+
+CREATE TABLE IF NOT EXISTS scan_hosts (
+    run_id      INTEGER NOT NULL REFERENCES scan_runs(id) ON DELETE CASCADE,
+    network_id  INTEGER REFERENCES networks(id) ON DELETE CASCADE,
+    ip          TEXT NOT NULL,
+    mac         TEXT NOT NULL DEFAULT '',
+    vendor      TEXT NOT NULL DEFAULT '',
+    hostname    TEXT NOT NULL DEFAULT '',
+    ports       TEXT NOT NULL DEFAULT '',        -- „80,443,9100“
+    PRIMARY KEY (run_id, ip)
+);
+
+CREATE TABLE IF NOT EXISTS scan_ignore (
+    key         TEXT PRIMARY KEY,                -- new:mac:AA:BB… | new:ip:1.2.3.4 | mac:<ip>:<mac>
+    created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TEXT NOT NULL
+);
+""")
+
+
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_stammdaten,
     3: _m3_tresor,
     4: _m4_fristen,
+    5: _m5_scan,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
@@ -313,6 +354,11 @@ DEFAULT_SETTINGS = {
     "deadline_last_run": "",
     "deadline_last_week": "",
     "deadline_last_result": "",
+    # Netzwerk-Scan: nachts automatisch (nur Netze mit Haken „scannen“)
+    "scan_nightly": "1",
+    "scan_hour": "3",
+    "scan_last_day": "",
+    "scan_stale_days": "30",
 }
 
 

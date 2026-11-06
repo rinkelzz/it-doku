@@ -2,6 +2,22 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.5.0] – 2026-11-06
+
+### Neu
+- **Netzwerk-Scan** (Netzwerk → 🔍 Scan): prüft Netze mit Haken „beim Netzwerk-Scan berücksichtigen“ (IPv4, höchstens /22)
+  – von Hand oder jede Nacht (Uhrzeit wählbar). Ohne Root-Rechte und ohne Zusatzprogramme: TCP-Verbindungsversuche auf
+  gängige Ports (auch eine Ablehnung zeigt, dass ein Gerät da ist), MAC-Adressen aus der ARP-Tabelle der NAS, Namen aus
+  DNS und NetBIOS, Hersteller aus dem MAC-Präfix.
+- **Neu gefunden:** unbekannte Adressen mit Name, MAC, Hersteller und offenen Ports; Gerätetyp wird geraten (z. B. Drucker
+  bei Port 9100, NAS bei 5000/5001, PC bei RDP/SMB, Handy bei zufälliger MAC) und lässt sich vor dem Anlegen ändern.
+  Mehrere auf einmal **als Geräte anlegen** oder **ignorieren**.
+- **Ergänzen:** fehlende MAC-Adressen und Hostnamen bekannter IPs mit einem Klick übernehmen.
+- **Abweichungen:** bekannte IP mit anderer MAC (Gerätetausch oder doppelt vergebene IP) – neue MAC übernehmen oder ignorieren.
+- **Länger nicht gesehen:** aktive Geräte, die über 30 Tage nicht erreichbar waren – auf Wunsch als ausgemustert markieren.
+- IP-Liste mit Punkt und Spalte **„zuletzt online“**, Hinweis auf der **Übersicht** und in der **Fristen-Mail**, wenn
+  der Scan unbekannte Geräte gefunden hat.
+
 ## [0.4.0] – 2026-11-06
 
 ### Neu
@@ -87,6 +103,7 @@ Erste Version: das Fundament der IT-Dokumentation (übernommen aus [Zeitmanageme
 - **Port** in der App änderbar, Mailversand über den eigenen SMTP-Server mit Testmail.
 - Neues Symbol (Dokument mit Schloss).
 
+[0.5.0]: https://github.com/rinkelzz/it-doku/releases/tag/v0.5.0
 [0.4.0]: https://github.com/rinkelzz/it-doku/releases/tag/v0.4.0
 [0.3.0]: https://github.com/rinkelzz/it-doku/releases/tag/v0.3.0
 [0.2.0]: https://github.com/rinkelzz/it-doku/releases/tag/v0.2.0

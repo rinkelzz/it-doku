@@ -44,7 +44,7 @@ async function docShow(tab, sub) {
   $$(".admin").forEach(el => el.classList.toggle("hidden", !isAdmin()));
   if (tab === "home") return loadHomeDoc();
   if (tab === "devices") return sub ? showDevice(Number(sub)) : loadDevices();
-  if (tab === "network") return loadNetwork();
+  if (tab === "network") return sub === "scan" && isAdmin() ? loadScan() : loadNetwork();
   if (tab === "licenses") return sub ? showLicense(Number(sub)) : loadLicenses();
   if (tab === "contacts") return loadContacts(sub ? Number(sub) : 0);
   if (tab === "vault" && window.loadCredentials) return loadCredentials();
@@ -196,6 +196,11 @@ async function loadHomeDoc() {
     ["contacts", "Ansprechpartner", o.contacts, `${o.contacts_external} externe Dienstleister`],
   ].map(([t, l, n, s]) => `<div class="stat link" data-go="${t}"><small>${l}</small><b>${n}</b><small>${s}</small></div>`).join("");
   $$("#homeStats [data-go]").forEach(el => el.onclick = () => go(el.dataset.go));
+  $("homeScan").classList.toggle("hidden", !o.scan_new);
+  if (o.scan_new) {
+    $("homeScan").innerHTML = `<span>🔍 Der Netzwerk-Scan hat <b>${o.scan_new} unbekannte${o.scan_new === 1 ? "s Gerät" : " Geräte"}</b> gefunden.</span><button class="primary">Ansehen</button>`;
+    $("homeScan").querySelector("button").onclick = () => go("network", "scan");
+  }
   $("homeDue").innerHTML = o.due.length ? o.due.map(d => `<div class="due click" data-kind="${d.kind}" data-id="${d.id}">
       <span class="ti">${d.kind === "license" ? "🔑" : esc(d.icon || "🖥️")}</span>
       <div>${esc(d.name)}<small>${esc(d.what)}${d.info ? " · " + esc(d.info) : ""}</small></div>${dueTag(d.date, d.days)}</div>`).join("")
@@ -418,6 +423,7 @@ async function ipForm(ip, preset, reload) {
 
 // ---------- Netzwerk ----------
 async function loadNetwork() {
+  $("netView").classList.remove("hidden"); $("scanView").classList.add("hidden");
   $("netErr").textContent = "";
   const siteId = doc.site || (doc.sites[0] || {}).id;
   const site = doc.sites.find(s => s.id === siteId) || {};
@@ -427,7 +433,7 @@ async function loadNetwork() {
   try { nets = await api("networks" + (multiSite() ? "?site_id=" + siteId : "")); } catch (e) { $("netErr").textContent = e.message; return; }
   if (!nets.some(n => n.id === doc.net)) doc.net = (nets[0] || {}).id || 0;
   $("netGrid").innerHTML = nets.map(n => `<div class="net ${n.id === doc.net ? "on" : ""}" data-net="${n.id}">
-      <h3><span>${esc(n.name)}</span><span class="row" style="gap:6px">${n.vlan != null ? `<span class="tag">VLAN ${n.vlan}</span>` : ""}
+      <h3><span>${esc(n.name)}</span><span class="row" style="gap:6px">${n.scan ? '<span class="tag" title="wird beim Netzwerk-Scan geprüft">🔍</span>' : ""}${n.vlan != null ? `<span class="tag">VLAN ${n.vlan}</span>` : ""}
         ${isAdmin() ? `<button class="mini" data-netedit="${n.id}" title="Netz bearbeiten">✎</button>` : ""}</span></h3>
       <dl class="kv"><dt>Netz</dt><dd class="mono">${esc(n.cidr || "–")}</dd><dt>Gateway</dt><dd class="mono">${esc(n.gateway || "–")}</dd>
         <dt>DHCP</dt><dd class="mono">${esc(dhcpRange(n.dhcp_from, n.dhcp_to))}</dd><dt>DNS</dt><dd class="mono">${esc(n.dns || "–")}</dd></dl>
@@ -451,10 +457,11 @@ async function loadIps(net) {
   try { rows = await api(`ips?network_id=${net.id}${$("ipFree").checked ? "&free=1" : ""}`); } catch (e) { $("ipErr").textContent = e.message; return; }
   const q = $("ipQ").value.trim().toLowerCase();
   if (q) rows = rows.filter(r => [r.ip, r.device_name, r.hostname, r.mac, r.notes].some(x => (x || "").toLowerCase().includes(q)));
-  $("ipTable").innerHTML = `<thead><tr><th>IP</th><th>Gerät</th><th>Hostname</th><th>MAC</th><th>Hinweis</th></tr></thead><tbody>` +
-    (rows.map(r => r.free ? `<tr class="free" data-free="${esc(r.ip)}"><td class="mono">${esc(r.ip)}</td><td colspan="4">frei</td></tr>`
-      : `<tr data-ip="${r.id}"><td class="mono">${esc(r.ip)}</td><td>${r.device_id ? `${esc(r.device_icon)} ${esc(r.device_name)}` : '<span class="muted">–</span>'}</td>
-        <td class="mono">${esc(r.hostname || "–")}</td><td class="mono">${esc(r.mac || "–")}</td><td class="wrap small">${esc([r.kind !== "static" ? r.kind_label : "", r.notes].filter(Boolean).join(" · "))}</td></tr>`).join("") +
+  const scanned = !!net.first_scan_at;
+  $("ipTable").innerHTML = `<thead><tr><th>IP</th><th>Gerät</th><th>Hostname</th><th>MAC</th><th>Hinweis</th>${scanned ? "<th>zuletzt online</th>" : ""}</tr></thead><tbody>` +
+    (rows.map(r => r.free ? `<tr class="free" data-free="${esc(r.ip)}"><td class="mono">${esc(r.ip)}</td><td colspan="${scanned ? 5 : 4}">frei</td></tr>`
+      : `<tr data-ip="${r.id}"><td class="mono">${scanned ? seenDot(r.last_seen) : ""}${esc(r.ip)}</td><td>${r.device_id ? `${esc(r.device_icon)} ${esc(r.device_name)}` : '<span class="muted">–</span>'}</td>
+        <td class="mono">${esc(r.hostname || "–")}</td><td class="mono">${esc(r.mac || "–")}</td><td class="wrap small">${esc([r.kind !== "static" ? r.kind_label : "", r.notes].filter(Boolean).join(" · "))}</td>${scanned ? `<td class="small">${seenText(r.last_seen)}</td>` : ""}</tr>`).join("") +
      (net.dhcp_from && !q ? `<tr class="free"><td class="mono">${esc(dhcpRange(net.dhcp_from, net.dhcp_to))}</td><td colspan="4">DHCP-Bereich</td></tr>` : "") ||
      '<tr><td colspan="5" class="emptyrow">Keine IP-Adressen.</td></tr>') + "</tbody>";
   const reload = () => loadNetwork();
@@ -482,6 +489,7 @@ function networkForm(n) {
     { k: "dns", label: "DNS", mono: true, ph: "192.168.10.1" },
     ...(multiSite() ? [{ k: "site_id", label: "Standort", type: "select", int: true, options: siteOptions(false) }] : []),
     { k: "notes", label: "Notizen", type: "textarea", span2: true, ph: "z. B. Gäste-WLAN isoliert, WLAN-Name, Firewall-Regeln" },
+    { k: "scan", label: "beim Netzwerk-Scan berücksichtigen (IPv4, höchstens /22)", type: "check", span2: true },
   ];
   openForm({ title: n ? `${n.name} bearbeiten` : "Neues Netz", fields, values: n ? { ...n } : { site_id: siteId },
     hint: "Bereits erfasste IP-Adressen, die ins Netz passen, werden beim Anlegen automatisch zugeordnet.",
@@ -894,3 +902,114 @@ $("dlSend").onclick = async () => {
   catch (e) { $("dlErr").textContent = e.message; }
   finally { $("dlSend").disabled = false; }
 };
+
+// ---------- Netzwerk-Scan ----------
+const DAY_MS = 86400000;
+function seenDot(ts) {
+  if (!ts) return '<span class="dot off" title="beim Scan nie gesehen"></span>';
+  const age = Date.now() - new Date(ts).getTime();
+  return `<span class="dot ${age < 2 * DAY_MS ? "on" : age > 30 * DAY_MS ? "old" : "off"}"></span>`;
+}
+function seenText(ts) {
+  if (!ts) return '<span class="muted">nie</span>';
+  const days = Math.floor((Date.now() - new Date(ts).getTime()) / DAY_MS);
+  return days >= 2 ? `vor ${days} Tagen` : fmtDT(ts);
+}
+$("netScan").onclick = () => go("network", "scan");
+let scanPoll = null;
+async function loadScan() {
+  $("netView").classList.add("hidden"); $("scanView").classList.remove("hidden");
+  clearTimeout(scanPoll);
+  let r;
+  try { r = await api("scan"); } catch (e) { $("scanView").innerHTML = `<div class="card err">${esc(e.message)}</div>`; return; }
+  const st = r.status, run = r.run, s = r.settings;
+  const nets = r.networks;
+  const on = nets.filter(n => n.scan && !n.problem);
+  const off = nets.filter(n => !n.scan || n.problem);
+  const types = doc.types.map(t => [t.id, `${t.icon} ${t.name}`]);
+  const typeSel = (id) => `<select data-type>${types.map(([k, l]) => `<option value="${k}" ${k === id ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  const dur = run && run.finished_at ? Math.max(1, Math.round((new Date(run.finished_at) - new Date(run.started_at)) / 1000)) : 0;
+  const progress = st.running ? `<div class="scanbar"><span class="small">Scan läuft · ${esc(st.phase)} · ${st.done} von ${st.total} Adressen</span>
+      <div class="prog"><i style="width:${st.total ? Math.round(st.done / st.total * 100) : 5}%"></i></div></div>` : "";
+  $("scanView").innerHTML = `<section class="card">
+    <div class="toolbar"><h2>🔍 Netzwerk-Scan</h2><div class="row"><button data-back>‹ Zurück zum Netzwerk</button>
+      <button class="primary" data-start ${st.running || !on.length ? "disabled" : ""}>${st.running ? "Scan läuft …" : "Jetzt scannen"}</button></div></div>
+    ${progress}
+    <div class="scanbar"><span class="small">${run ? `Letzter Scan: ${fmtDT(run.finished_at_local)} (${run.trigger === "nightly" ? "nachts" : "von Hand"}) · ${esc(run.networks)} ·
+        ${run.hosts_up} von ${run.addresses} Adressen online · Dauer ${dur} s${run.error ? ` · <span class="err">Fehler: ${esc(run.error)}</span>` : ""}` : "Noch kein Scan gelaufen."}</span>
+      <label class="inline small" style="margin-left:auto"><input type="checkbox" data-nightly ${s.nightly ? "checked" : ""}> jede Nacht um
+        <select data-hour>${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === s.hour ? "selected" : ""}>${String(h).padStart(2, "0")}:00</option>`).join("")}</select> scannen</label></div>
+    <p class="muted small" style="margin:8px 0 0">${on.length ? `Gescannt werden: ${on.map(n => `<b>${esc(n.name)}</b>`).join(", ")}` : "<b>Noch kein Netz zum Scannen markiert.</b>"}
+      ${off.length ? ` · nicht gescannt: ${off.map(n => esc(n.name) + (n.problem && n.scan ? ` (${esc(n.problem)})` : "")).join(", ")}` : ""}.
+      Den Haken „beim Netzwerk-Scan berücksichtigen“ setzt du am Netz (✎). Geprüft werden gängige Ports (Web, Windows-Freigaben, SSH, Drucker, RDP …);
+      MAC-Adressen kommen aus der ARP-Tabelle der NAS (nur Netze, in denen die NAS selbst hängt), Namen aus DNS und NetBIOS.</p>
+  </section>
+  ${run ? `<section class="card grp">
+    <h3>🆕 Neu gefunden <span class="tag ${r.new.length ? "warn" : ""}">${r.new.length}</span></h3>
+    ${r.new.length ? `<div class="scroll"><table id="scNew"><thead><tr><th><input type="checkbox" data-all checked></th><th>IP</th><th>Name</th><th>MAC · Hersteller</th><th>Offene Ports</th><th>Name in der Doku</th><th>übernehmen als</th></tr></thead><tbody>
+      ${r.new.map((h, i) => `<tr data-i="${i}"><td><input type="checkbox" data-pick ${h.vendor === "zufällige MAC" ? "" : "checked"}></td><td class="mono">${esc(h.ip)}</td>
+        <td class="mono">${esc(h.hostname || "–")}</td><td class="mono">${esc(h.mac || "–")}${h.vendor ? ` <span class="muted">· ${esc(h.vendor)}</span>` : ""}</td>
+        <td class="ports">${esc(h.port_names.join(" · ") || "–")}</td><td><input data-name value="${esc(h.hostname || h.ip)}" style="width:150px"></td><td>${typeSel(h.type_id)}</td></tr>`).join("")}
+      </tbody></table></div>
+      <div class="row" style="margin-top:8px"><button class="primary" data-adopt>Ausgewählte anlegen</button><button data-ignore-new>Ausgewählte ignorieren</button>
+        <span class="muted small">Ignorierte tauchen bei späteren Scans nicht mehr als „neu“ auf.</span></div>` : '<p class="muted small">Keine unbekannten Geräte.</p>'}
+
+    <h3>✏️ Ergänzen <span class="tag">${r.fill.length}</span></h3>
+    ${r.fill.length ? `<div class="scroll"><table><thead><tr><th>Gerät</th><th>IP</th><th>wird ergänzt</th><th></th></tr></thead><tbody>
+      ${r.fill.map((f, i) => `<tr><td>${f.device_id ? `${esc(f.device_icon)} <a href="#devices/${f.device_id}">${esc(f.device_name)}</a>` : '<span class="muted">ohne Gerät</span>'}</td><td class="mono">${esc(f.ip)}</td>
+        <td class="mono small">${[f.mac ? "MAC " + esc(f.mac) : "", f.hostname ? "Hostname " + esc(f.hostname) : ""].filter(Boolean).join(" · ")}</td>
+        <td class="num"><button class="mini primary" data-fill="${i}">übernehmen</button></td></tr>`).join("")}</tbody></table></div>
+      <div class="row" style="margin-top:8px"><button data-fill-all>Alle ${r.fill.length} übernehmen</button></div>` : '<p class="muted small">Nichts zu ergänzen.</p>'}
+
+    <h3>⚠️ Abweichungen <span class="tag ${r.mismatch.length ? "bad" : ""}">${r.mismatch.length}</span></h3>
+    ${r.mismatch.length ? `<div class="scroll"><table><thead><tr><th>Gerät</th><th>IP</th><th>MAC in der Doku</th><th>MAC jetzt</th><th></th></tr></thead><tbody>
+      ${r.mismatch.map((m, i) => `<tr><td>${m.device_id ? `${esc(m.device_icon)} <a href="#devices/${m.device_id}">${esc(m.device_name)}</a>` : "–"}</td><td class="mono">${esc(m.ip)}</td>
+        <td class="mono">${esc(m.mac_doc)}</td><td class="mono">${esc(m.mac_now)}${m.vendor ? ` <span class="muted">· ${esc(m.vendor)}</span>` : ""}</td>
+        <td class="num nowrap"><button class="mini" data-mm="${i}">neue MAC übernehmen</button> <button class="mini" data-mmi="${i}">ignorieren</button></td></tr>`).join("")}</tbody></table></div>
+      <p class="muted small">Typisch nach einem Gerätetausch – oder wenn eine IP doppelt vergeben ist.</p>` : '<p class="muted small">Keine Abweichungen.</p>'}
+
+    <h3>💤 Länger nicht gesehen <span class="tag">${r.stale.length}</span> <span class="muted small" style="font-weight:400">· über ${s.stale_days} Tage</span></h3>
+    ${r.stale.length ? `<div class="scroll"><table><thead><tr><th>Gerät</th><th>IP</th><th>zuletzt online</th><th></th></tr></thead><tbody>
+      ${r.stale.map(x => `<tr><td>${esc(x.device_icon)} <a href="#devices/${x.device_id}">${esc(x.device_name)}</a></td><td class="mono">${esc(x.ip)}</td>
+        <td>${seenText(x.last_seen)}</td><td class="num"><button class="mini" data-retire="${x.device_id}">als ausgemustert markieren</button></td></tr>`).join("")}</tbody></table></div>`
+      : '<p class="muted small">Alle aktiven Geräte waren in letzter Zeit erreichbar (oder sind noch nicht lange genug erfasst).</p>'}
+    <div class="err" id="scErr"></div>
+  </section>` : ""}`;
+  const v = $("scanView");
+  v.querySelector("[data-back]").onclick = () => go("network");
+  v.querySelector("[data-start]").onclick = async () => {
+    try { await api("scan/start", { method: "POST" }); loadScan(); } catch (e) { alert(e.message); }
+  };
+  const saveSet = () => api("scan/settings", { method: "PATCH", body: { nightly: v.querySelector("[data-nightly]").checked, hour: Number(v.querySelector("[data-hour]").value) } }).catch(e => alert(e.message));
+  v.querySelector("[data-nightly]").onchange = saveSet; v.querySelector("[data-hour]").onchange = saveSet;
+  const err = (e) => { const el = $("scErr"); if (el) el.textContent = e.message; };
+  const picked = () => $$("#scNew tbody tr", v).filter(tr => tr.querySelector("[data-pick]").checked);
+  const all = v.querySelector("[data-all]");
+  if (all) all.onchange = () => $$("#scNew [data-pick]", v).forEach(c => { c.checked = all.checked; });
+  const ad = v.querySelector("[data-adopt]");
+  if (ad) ad.onclick = async () => {
+    const items = picked().map(tr => { const h = r.new[Number(tr.dataset.i)];
+      return { ip: h.ip, network_id: h.network_id, name: tr.querySelector("[data-name]").value.trim() || h.ip, type_id: Number(tr.querySelector("[data-type]").value), mac: h.mac, hostname: h.hostname }; });
+    if (!items.length) return;
+    try { const res = await api("scan/adopt", { method: "POST", body: { items } }); await loadRef(true); await loadScan(); okMsg($("scErr"), `${res.created} Geräte angelegt.`); } catch (e) { err(e); }
+  };
+  const ig = v.querySelector("[data-ignore-new]");
+  if (ig) ig.onclick = async () => {
+    const keys = picked().map(tr => { const h = r.new[Number(tr.dataset.i)]; return h.mac && !h.vendor.startsWith("zufällig") ? `new:mac:${h.mac}` : `new:ip:${h.ip}`; });
+    if (!keys.length) return;
+    try { await api("scan/ignore", { method: "POST", body: { keys } }); loadScan(); } catch (e) { err(e); }
+  };
+  const fillItems = (list) => list.map(f => ({ ip_id: f.ip_id, mac: f.mac || null, hostname: f.hostname || null }));
+  $$("[data-fill]", v).forEach(b => b.onclick = async () => { try { await api("scan/fill", { method: "POST", body: { items: fillItems([r.fill[Number(b.dataset.fill)]]) } }); loadScan(); } catch (e) { err(e); } });
+  const fa = v.querySelector("[data-fill-all]");
+  if (fa) fa.onclick = async () => { try { await api("scan/fill", { method: "POST", body: { items: fillItems(r.fill) } }); loadScan(); } catch (e) { err(e); } };
+  $$("[data-mm]", v).forEach(b => b.onclick = async () => { const m = r.mismatch[Number(b.dataset.mm)];
+    try { await api("scan/fill", { method: "POST", body: { items: [{ ip_id: m.ip_id, mac: m.mac_now }] } }); loadScan(); } catch (e) { err(e); } });
+  $$("[data-mmi]", v).forEach(b => b.onclick = async () => { const m = r.mismatch[Number(b.dataset.mmi)];
+    try { await api("scan/ignore", { method: "POST", body: { keys: [`mac:${m.ip_id}:${m.mac_now}`] } }); loadScan(); } catch (e) { err(e); } });
+  $$("[data-retire]", v).forEach(b => b.onclick = async () => {
+    if (!confirm("Gerät als ausgemustert markieren?")) return;
+    try { await api(`devices/${b.dataset.retire}`, { method: "PATCH", body: { status: "retired" } }); loadScan(); } catch (e) { err(e); }
+  });
+  if (st.running) scanPoll = setTimeout(() => { if (state.tab === "network" && state.sub === "scan") loadScan(); }, 1500);
+}

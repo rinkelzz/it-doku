@@ -52,6 +52,7 @@
         <button id="homeHandbook" title="Notfall-Kontakte, Internet, Netze, IP-Listen und Netzwerkplan als PDF – ohne Passwörter">📄 Notfall-Handbuch</button></div></div>
       <div class="stats" style="margin-top:0" id="homeStats"></div>
     </section>
+    <div class="httpwarn hidden" id="homeScan" style="margin:0;display:flex;gap:12px;align-items:center;justify-content:space-between"></div>
     <div class="g2">
       <section class="card"><h2>Bald fällig <span class="muted small" style="font-weight:400">– nächste 90 Tage</span></h2><div id="homeDue"></div></section>
       <section class="card"><h2>Im Notfall anrufen</h2><div id="homeSos"></div></section>
@@ -82,9 +83,10 @@
 
   <!-- NETZWERK -->
   <div data-page="network" class="page hidden">
+   <div id="netView" class="page">
     <section class="card">
       <div class="toolbar"><h2 id="netTitle">Netze</h2>
-        <div class="row"><select class="siteSel hidden" id="netSite" aria-label="Standort"></select><button class="primary admin hidden" id="netNew">＋ Netz</button></div></div>
+        <div class="row"><select class="siteSel hidden" id="netSite" aria-label="Standort"></select><button class="admin hidden" id="netScan">🔍 Scan</button><button class="primary admin hidden" id="netNew">＋ Netz</button></div></div>
       <div class="netgrid" id="netGrid"></div>
       <div class="err" id="netErr"></div>
     </section>
@@ -106,6 +108,8 @@
           <button class="mini admin hidden" id="ispEdit">Bearbeiten</button></div><div id="ispBox"></div></div>
       </aside>
     </div>
+   </div>
+   <div id="scanView" class="page hidden"></div>
   </div>
 
   <!-- LIZENZEN -->

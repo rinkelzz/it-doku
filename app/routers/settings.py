@@ -168,6 +168,7 @@ AUDIT_ACTIONS = {
     "file_added": ("doku", "Anhang hinzugefügt"),
     "file_deleted": ("doku", "Anhang gelöscht"),
     "handbook_pdf": ("doku", "Notfall-Handbuch erstellt"),
+    "scan_run": ("doku", "Netzwerk-Scan"),
     "devices_imported": ("doku", "Geräte importiert (CSV)"),
     "deadline_mail": ("einstellungen", "Fristen-Mail verschickt"),
     "secret_shown": ("tresor", "Geheimnis angezeigt"),

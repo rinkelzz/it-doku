@@ -26,6 +26,19 @@ def run_once() -> None:
     except Exception as e:  # noqa: BLE001
         print(f"[itdoku] Fristen-Mail FEHLER: {e}", flush=True)
     try:
+        from . import netscan
+        from .db import audit, connect as _c
+        conn = _c()
+        try:
+            rid = netscan.run_due(conn)
+            if rid:
+                r = conn.execute("SELECT * FROM scan_runs WHERE id = ?", (rid,)).fetchone()
+                audit(conn, None, "scan_run", "scan", f"Netzwerk-Scan (nachts): {r['hosts_up']} von {r['addresses']} Adressen online")
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001
+        print(f"[itdoku] Netzwerk-Scan FEHLER: {e}", flush=True)
+    try:
         from . import backup
         b = backup.run_due()
         if b:

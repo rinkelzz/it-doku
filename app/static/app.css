@@ -775,3 +775,14 @@ html.dark .warnbox { background: #422006; color: #fde68a; border-color: #b45309;
 }
 .brand > span { white-space: nowrap; }
 .mask { white-space: nowrap; }
+
+/* ===================== Netzwerk-Scan (0.5) ===================== */
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.dot.on { background: #16a34a; } .dot.off { background: #cbd5e1; } .dot.old { background: #f59e0b; }
+.scanbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+.prog { flex: 1; min-width: 200px; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.prog i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+.grp h3 { display: flex; gap: 8px; align-items: center; margin: 18px 0 6px !important; }
+.grp h3:first-child { margin-top: 0 !important; }
+.ports { font-size: 12px; color: var(--muted); }
+#scanView td a { color: var(--text); }

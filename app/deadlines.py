@@ -72,6 +72,13 @@ def compose_digest(conn: sqlite3.Connection, items: List[Dict], days: int) -> Tu
         body += "\nABGELAUFEN\n" + "\n".join(_line(i) for i in expired) + "\n"
     if soon:
         body += f"\nIN DEN NÄCHSTEN {days} TAGEN\n" + "\n".join(_line(i) for i in soon) + "\n"
+    try:
+        from .netscan import results
+        new = len(results(conn)["new"])
+    except Exception:  # noqa: BLE001
+        new = 0
+    if new:
+        body += f"\nNETZWERK\n- Der letzte Netzwerk-Scan hat {new} unbekannte Gerät{'' if new == 1 else 'e'} gefunden (Netzwerk → Scan).\n"
     return subject, body + _footer(conn)
 
 

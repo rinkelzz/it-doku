@@ -11,8 +11,8 @@ Lizenzen, Netzwerkplan und Zugangsdaten (verschlüsselt im Tresor). Sie läuft a
 eigenem Fenster in DSM. Die Daten bleiben beim Kunden; der IT-Dienstleister und eine Vertrauensperson beim Kunden
 haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 
-> **Stand 0.4:** Geräte, Netzwerk, Lizenzen, Ansprechpartner, Zugangsdaten im verschlüsselten Tresor, Fristen-Mail,
-> Notfall-Handbuch als PDF und CSV-Import – siehe [Fahrplan](#fahrplan).
+> **Stand 0.5:** Geräte, Netzwerk mit Netzwerk-Scan, Lizenzen, Ansprechpartner, Zugangsdaten im verschlüsselten Tresor,
+> Fristen-Mail, Notfall-Handbuch als PDF und CSV-Import – siehe [Fahrplan](#fahrplan).
 
 ![Übersicht](docs/screenshots/uebersicht.png)
 
@@ -49,6 +49,9 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
   wählbare Empfänger, dazu je Eintrag eine Erinnerung 14 Tage vorher und am Ablauftag (Verwaltung → Mail).
 - **Notfall-Handbuch als PDF** (Übersicht): Notfall-Kontakte, Internetanschluss, Netze, IP-Listen und Netzwerkplan je
   Standort – ohne Passwörter, zum Ausdrucken.
+- **Netzwerk-Scan** (von Hand oder nachts): findet unbekannte Geräte und legt sie mit einem Klick an, ergänzt MAC und
+  Hostname, meldet abweichende MAC-Adressen und Geräte, die länger nicht erreichbar waren. Läuft ohne Root-Rechte und ohne
+  Zusatzprogramme, nur in Netzen mit Haken „scannen“ (IPv4, höchstens /22).
 - **CSV-Import für Geräte:** beliebige Inventarliste hochladen, Spalten zuordnen, Vorschau prüfen, importieren.
   Dubletten (gleiche Seriennummer) werden übersprungen.
 
@@ -57,8 +60,8 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 | ![Übersicht](docs/screenshots/uebersicht.png) | ![Gerät](docs/screenshots/geraet.png) | ![Netzwerk](docs/screenshots/netzwerk.png) |
 | **Geräte** | **Lizenzen** | **Kontakte** |
 | ![Geräte](docs/screenshots/geraete.png) | ![Lizenzen](docs/screenshots/lizenzen.png) | ![Kontakte](docs/screenshots/kontakte.png) |
-| **CSV-Import** | **Fristen-Mail** | |
-| ![CSV-Import](docs/screenshots/import.png) | ![Fristen-Mail](docs/screenshots/fristen-mail.png) | |
+| **CSV-Import** | **Fristen-Mail** | **Netzwerk-Scan** |
+| ![CSV-Import](docs/screenshots/import.png) | ![Fristen-Mail](docs/screenshots/fristen-mail.png) | ![Netzwerk-Scan](docs/screenshots/netzwerk-scan.png) |
 | **Suche** | **Stammdaten** | **Handy** |
 | ![Suche](docs/screenshots/suche.png) | ![Stammdaten](docs/screenshots/stammdaten.png) | ![Handy](docs/screenshots/handy.png) |
 
@@ -126,7 +129,9 @@ IT-Dokumentation ein Benutzer mit gleichem Namen angelegt ist. Beides lässt sic
 | **0.2** ✔ | Stammdaten: Standorte, Ansprechpartner, Geräte mit frei pflegbaren Typen und Verbindungen, Lizenzen inkl. Domains und Zertifikate, Netze/VLANs mit IP-Liste, Netzwerkplan, Internetanschluss, Anhänge, Verlauf, globale Suche |
 | **0.3** ✔ | Tresor: Zugangsdaten mit Tresor-Passwort pro Benutzer, Einladungscode, Notfall-Schlüssel als PDF, Auto-Sperre, Anzeigen/Kopieren mit Protokoll, Passwort-Generator, 2FA-Codes (TOTP), verschlüsselte Lizenzschlüssel |
 | **0.4** ✔ | Komfort: Fristen-Mail (wöchentlich + Stichtage), PDF „Notfall-Handbuch“ (Kontakte, Internet, Netzwerk), CSV-Import für Geräte mit Spaltenzuordnung |
-| später | Netzwerk-Scan, Wiki-Seiten für Anleitungen, Verknüpfung mit dem Helpdesk aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) |
+| **0.5** ✔ | Netzwerk-Scan: neue Geräte übernehmen, MAC/Hostname ergänzen, Abweichungen, „zuletzt online“, nachts automatisch |
+| 0.6 | Agent für entfernte Server (Windows, Linux, macOS): meldet Hardware, System, Netzwerk, Software, Updates und Dienste per HTTPS |
+| später | Wiki-Seiten für Anleitungen, Verknüpfung mit dem Helpdesk aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) |
 
 ## Installation auf der Synology
 
@@ -237,7 +242,9 @@ customer's own NAS, in its own DSM window with single sign-on. The user interfac
   recovery key; invitation codes, auto-lock, audited show/copy, password generator, TOTP codes.
 - 0.4: weekly expiry digest plus reminders 14 days before and on the day, emergency handbook PDF (contacts, internet,
   networks, IP lists, diagram – no passwords), CSV import for devices with column mapping and preview.
-- Planned: network scan, wiki pages for how-tos, link to the Zeitmanagement helpdesk.
+- 0.5: network scan without root (TCP probes, ARP, DNS/NetBIOS): adopt new devices, fill in MAC/hostname, MAC mismatches,
+  “last seen”, nightly scans.
+- Planned: agent for remote servers (Windows, Linux, macOS), wiki pages, link to the Zeitmanagement helpdesk.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/it-doku/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.

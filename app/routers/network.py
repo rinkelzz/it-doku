@@ -186,10 +186,11 @@ class NetworkIn(BaseModel):
     dns: Optional[str] = Field(None, max_length=200)
     notes: Optional[str] = LONG
     sort: Optional[int] = None
+    scan: Optional[bool] = Field(None, description="beim Netzwerk-Scan berücksichtigen (IPv4, höchstens /22)")
 
 
 NET_LABELS = {"name": "Name", "vlan": "VLAN", "cidr": "Netz", "gateway": "Gateway", "dhcp_from": "DHCP von",
-              "dhcp_to": "DHCP bis", "dns": "DNS", "notes": "Notizen", "site_id": "Standort"}
+              "dhcp_to": "DHCP bis", "dns": "DNS", "notes": "Notizen", "site_id": "Standort", "scan": "Scannen"}
 
 
 def _check_network(conn, values: dict) -> dict:
@@ -200,11 +201,19 @@ def _check_network(conn, values: dict) -> dict:
             values[k] = parse_ip(values[k])
     if values.get("site_id"):
         get_or_404(conn, "site", values["site_id"])
+    if values.get("scan"):
+        from ..netscan import check_network
+        cidr = values.get("cidr") if "cidr" in values else (conn.execute("SELECT cidr FROM networks WHERE id = ?", (values.get("_id"),)).fetchone() or [""])[0]
+        problem = check_network(cidr or "")
+        if problem:
+            raise HTTPException(400, f"Scannen geht hier nicht: {problem}")
+    values.pop("_id", None)
     return values
 
 
 def network_out(conn, r) -> dict:
     out = dict(r)
+    out["scan"] = bool(r["scan"]) if "scan" in r.keys() else False
     out["used"] = conn.execute("SELECT COUNT(*) FROM ip_addresses WHERE network_id = ?", (r["id"],)).fetchone()[0]
     out["size"] = None
     if r["cidr"]:
@@ -247,7 +256,7 @@ def create_network(data: NetworkIn, admin=Depends(admin_user), conn: sqlite3.Con
 @router.patch("/networks/{network_id}")
 def update_network(network_id: int, data: NetworkIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
     old = get_or_404(conn, "network", network_id)
-    values = _check_network(conn, strip_strings(data.model_dump(exclude_unset=True)))
+    values = _check_network(conn, {**strip_strings(data.model_dump(exclude_unset=True)), "_id": network_id})
     if "name" in values and not values["name"]:
         raise HTTPException(400, "Der Name darf nicht leer sein")
     text = diff(old, values, NET_LABELS)

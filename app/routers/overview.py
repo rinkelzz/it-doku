@@ -35,6 +35,14 @@ def recent_changes(conn: sqlite3.Connection, limit: int = 8, with_credentials: b
     return out
 
 
+def _scan_new(conn) -> int:
+    from .. import netscan
+    try:
+        return len(netscan.results(conn)["new"])
+    except Exception:  # noqa: BLE001 – Übersicht soll nie am Scan scheitern
+        return 0
+
+
 @router.get("/overview")
 def overview(site_id: Optional[int] = None, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
     def one(sql, args=()):
@@ -57,6 +65,7 @@ def overview(site_id: Optional[int] = None, user=Depends(current_user), conn: sq
             "ORDER BY external, name COLLATE NOCASE")],
         "sites": list_sites(user=user, conn=conn),
         "recent": recent_changes(conn, with_credentials=bool(user["is_admin"])),
+        "scan_new": _scan_new(conn) if user["is_admin"] else 0,
     }
 
 
