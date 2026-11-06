@@ -368,9 +368,13 @@ def mac_software():
         out.append({"name": a.get("_name", ""), "version": a.get("version", ""),
                     "publisher": (a.get("signed_by") or [""])[0].replace("Developer ID Application: ", "") if isinstance(a.get("signed_by"), list) else "",
                     "installed_on": (a.get("lastModified") or "")[:10]})
-    brew = which("brew")
+    brew = which("brew") or next((b for b in ("/opt/homebrew/bin/brew", "/usr/local/bin/brew") if os.path.exists(b)), None)
     if brew:
-        for line in run([brew, "list", "--versions"], 60).splitlines():
+        cmd = [brew, "list", "--versions"]
+        if os.geteuid() == 0:  # Homebrew verweigert root – als Besitzer der Installation fragen
+            import pwd
+            cmd = ["sudo", "-u", pwd.getpwuid(os.stat(brew).st_uid).pw_name] + cmd
+        for line in run(cmd, 60).splitlines():
             f = line.split()
             if len(f) >= 2:
                 out.append({"name": f[0], "version": f[-1], "publisher": "Homebrew"})
