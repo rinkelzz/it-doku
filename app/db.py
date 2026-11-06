@@ -335,6 +335,21 @@ CREATE INDEX IF NOT EXISTS idx_agents_device ON agents(device_id);
 """)
 
 
+def _m7_weburls(conn: sqlite3.Connection) -> None:
+    """Version 0.7: Web-Adressen pro Gerät (Admin-Oberfläche, Dienste wie Vaultwarden im Container)."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS device_urls (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id   INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    label       TEXT NOT NULL DEFAULT '',
+    url         TEXT NOT NULL,
+    sort        INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_device_urls_device ON device_urls(device_id);
+""")
+
+
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_stammdaten,
@@ -342,6 +357,7 @@ MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     4: _m4_fristen,
     5: _m5_scan,
     6: _m6_agenten,
+    7: _m7_weburls,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 

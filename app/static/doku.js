@@ -263,7 +263,7 @@ async function loadDevices() {
   $("devTitle").innerHTML = `${esc(typeName || "Geräte")} <span class="muted small" style="font-weight:400">· ${rows.length}${doc.dev.status ? " " + STATUS[doc.dev.status] : ""}</span>`;
   const warr = (d) => d.warranty_until ? `<span class="tag ${d.warranty_days < 0 ? "" : d.warranty_days <= 90 ? "warn" : ""}">${monthYear(d.warranty_until)}</span>` : '<span class="muted">–</span>';
   $("devTable").innerHTML = `<thead><tr><th>Gerät</th><th>IP-Adresse</th><th>Raum</th><th>Benutzt von</th><th>Seriennummer</th><th>Garantie</th></tr></thead><tbody>` +
-    (rows.map(d => `<tr data-id="${d.id}"><td data-sort="${esc(d.name)}"><div class="nm"><span class="ti">${esc(d.type_icon)}</span><div><b class="${isPlaceholder(d.name) ? "unnamed" : ""}">${esc(d.name)}</b>
+    (rows.map(d => `<tr data-id="${d.id}"><td data-sort="${esc(d.name)}"><div class="nm"><span class="ti">${esc(d.type_icon)}</span><div><b class="${isPlaceholder(d.name) ? "unnamed" : ""}">${esc(d.name)}</b>${(d.urls || []).slice(0, 3).map(u => webLink(u.url, "↗", "weblnk", u.label || u.url)).join("")}
       <small>${esc([[d.manufacturer, d.model].filter(Boolean).join(" "), d.os].filter(Boolean).join(" · "))}${d.status !== "active" ? ` · <i>${esc(d.status_label)}</i>` : ""}</small></div></div></td>
       <td class="mono">${esc(d.ips || "–")}</td><td>${esc(d.room || "–")}${multiSite() && !doc.site && d.site_name ? `<small class="muted" style="display:block">${esc(d.site_name)}</small>` : ""}</td><td>${esc(d.used_by || "–")}</td>
       <td class="mono">${esc(d.serial || "–")}</td><td data-sort="${esc(d.warranty_until || "")}">${warr(d)}</td></tr>`).join("") ||
@@ -334,7 +334,7 @@ async function showDevice(id) {
       <div class="dhead"><span class="ti">${esc(d.type_icon)}</span><div><h2>${esc(d.name)}</h2>
         <div class="row"><span class="tag ${d.status === "active" ? "okk" : ""}">${esc(d.status_label)}</span><span class="tag">${esc(d.type_name)}</span>
           ${d.site_name || d.room ? `<span class="tag">📍 ${esc([multiSite() ? d.site_name : "", d.room].filter(Boolean).join(" · "))}</span>` : ""}</div></div>
-        ${adm ? '<div class="row"><button data-edit>Bearbeiten</button></div>' : ""}</div>
+        <div class="row">${d.urls.slice(0, 3).map(u => webLink(u.url, `↗ ${esc(u.label || urlHost(u.url))}`, "linkbtn")).join("")}${adm ? "<button data-edit>Bearbeiten</button>" : ""}</div></div>
       <div class="fgrid">
         ${kv([["Hersteller", esc(d.manufacturer)], ["Modell", esc(d.model)], ["Seriennummer", esc(d.serial), "mono"], ["Inventar-Nr.", esc(d.inventory_no), "mono"]])}
         ${kv([["Betriebssystem", esc(d.os)], ["Benutzt von", esc(d.used_by)],
@@ -346,6 +346,13 @@ async function showDevice(id) {
         ${d.ip_list.map(i => `<tr data-ip="${i.id}"><td class="mono">${esc(i.ip)}</td><td>${esc(i.network_name || "–")}</td><td class="mono">${esc(i.mac || "–")}</td>
           <td class="mono">${esc(i.hostname || "–")}</td><td>${esc(i.kind_label)}</td></tr>`).join("")}</tbody></table></div>`
         : '<p class="muted small" style="margin:0">Keine IP-Adresse erfasst.</p>'}
+      <div class="sect">Web-Oberflächen ${adm ? '<button class="mini" data-addurl>＋ Web-Adresse</button>' : ""}</div>
+      ${d.urls.map(u => `<div class="weburl"><span>${webLink(u.url, esc(u.label || urlHost(u.url)))}<small class="mono muted">${esc(u.url)}</small></span>
+        ${adm ? `<span class="row" style="gap:4px"><button class="mini" data-editurl="${u.id}" title="Bearbeiten">✎</button><button class="mini" data-delurl="${u.id}" title="Entfernen">✕</button></span>` : ""}</div>`).join("") ||
+        (d.url_suggestions.length || !adm ? "" : '<p class="muted small" style="margin:0">Keine Web-Adresse – z. B. Admin-Oberfläche oder ein Dienst im Container.</p>')}
+      ${adm && d.url_suggestions.length ? `<p class="small" style="margin:6px 0 0"><span class="muted">Gefunden:</span> ${d.url_suggestions.map((u, i) =>
+        `<button class="mini" data-suggurl="${i}" title="Als Web-Adresse übernehmen">＋ ${esc(u)}</button>`).join(" ")}</p>` : ""}
+      ${!adm && !d.urls.length ? '<p class="muted small" style="margin:0">–</p>' : ""}
       <div class="sect">Notizen</div>
       ${d.notes ? `<div class="note">${esc(d.notes)}</div>` : '<p class="muted small" style="margin:0">–</p>'}
       <div class="sect">Anhänge ${uploadButton("devFile")}</div>
@@ -393,6 +400,28 @@ async function showDevice(id) {
       options: lics.map(l => [l.id, `${l.name}${l.seats != null ? ` (${l.used}/${l.seats})` : ""}`]) }],
       save: async (v) => { await api(`licenses/${v.license_id}/devices`, { method: "POST", body: { device_id: d.id } }); reload(); } });
   };
+  const urlForm = (u) => openForm({ title: u ? "Web-Adresse bearbeiten" : "Neue Web-Adresse", narrow: true, fields: [
+      { k: "label", label: "Bezeichnung", ph: "z. B. Vaultwarden, Admin-Oberfläche", max: 100 },
+      { k: "url", label: "Adresse", mono: true, ph: "https://vault.kunde.de", max: 500 }],
+    values: u ? { ...u } : { url: d.url_suggestions[0] || "" },
+    hint: "http:// oder https://; ohne Angabe wird https:// ergänzt.",
+    save: async (v) => {
+      await api(u ? `device-urls/${u.id}` : `devices/${id}/urls`, { method: u ? "PATCH" : "POST", body: { label: v.label, url: v.url } });
+      reload();
+    } });
+  if (adm) {
+    box.querySelector("[data-addurl]").onclick = () => urlForm(null);
+    $$("[data-editurl]", box).forEach(b => b.onclick = () => urlForm(d.urls.find(u => u.id === Number(b.dataset.editurl))));
+    $$("[data-delurl]", box).forEach(b => b.onclick = async () => {
+      const u = d.urls.find(x => x.id === Number(b.dataset.delurl));
+      if (!confirm(`Web-Adresse „${u.label || u.url}“ entfernen?`)) return;
+      try { await api(`device-urls/${u.id}`, { method: "DELETE" }); reload(); } catch (e) { alert(e.message); }
+    });
+    $$("[data-suggurl]", box).forEach(b => b.onclick = async () => {
+      const url = d.url_suggestions[Number(b.dataset.suggurl)];
+      try { await api(`devices/${id}/urls`, { method: "POST", body: { label: "", url } }); reload(); } catch (e) { alert(e.message); }
+    });
+  }
   box.querySelector("[data-addlink]").onclick = async () => {
     const devs = (await api("devices?status=all")).filter(x => x.id !== d.id && !d.links.some(k => k.device_id === x.id));
     if (!devs.length) { alert("Es gibt kein weiteres Gerät."); return; }
@@ -467,7 +496,7 @@ async function loadIps(net) {
     (rows.map(r => r.free ? `<tr class="free" data-free="${esc(r.ip)}"><td class="mono">${esc(r.ip)}</td><td colspan="${scanned ? 5 : 4}">frei</td></tr>`
       : `<tr data-ip="${r.id}"><td class="mono">${scanned ? seenDot(r.last_seen) : ""}${esc(r.ip)}</td><td data-sort="${esc(r.device_name || "")}">${r.device_id ? `${esc(r.device_icon)} <span class="${isPlaceholder(r.device_name) ? "unnamed" : ""}">${esc(r.device_name)}</span>${isAdmin()
           ? `<button class="mini renm${isPlaceholder(r.device_name) ? " show" : ""}" data-ren="${r.device_id}" title="Gerät umbenennen">✎</button>` : ""}` : '<span class="muted">–</span>'}</td>
-        <td class="mono">${esc(r.hostname || "–")}</td><td class="mono">${esc(r.mac || "–")}</td><td class="wrap small">${esc([r.kind !== "static" ? r.kind_label : "", r.notes].filter(Boolean).join(" · "))}</td>${scanned ? `<td class="small" data-sort="${esc(r.last_seen || "")}">${seenText(r.last_seen)}</td>` : ""}</tr>`).join("") +
+        <td class="mono" data-sort="${esc(r.hostname || "")}">${ipWebCell(r)}</td><td class="mono">${esc(r.mac || "–")}</td><td class="wrap small">${esc([r.kind !== "static" ? r.kind_label : "", r.notes].filter(Boolean).join(" · "))}</td>${scanned ? `<td class="small" data-sort="${esc(r.last_seen || "")}">${seenText(r.last_seen)}</td>` : ""}</tr>`).join("") +
      (net.dhcp_from && !q ? `<tr class="free"><td class="mono">${esc(dhcpRange(net.dhcp_from, net.dhcp_to))}</td><td colspan="4">DHCP-Bereich</td></tr>` : "") ||
      '<tr><td colspan="5" class="emptyrow">Keine IP-Adressen.</td></tr>') + "</tbody>";
   sortTable($("ipTable"));
@@ -918,6 +947,22 @@ $("dlSend").onclick = async () => {
 
 // ---------- Netzwerk-Scan ----------
 const DAY_MS = 86400000;
+// ---------- Web-Adressen ----------
+const urlHost = (u) => { try { return new URL(u).host; } catch (e) { return u; } };
+function webLink(url, html, cls = "", title = "") {
+  if (!/^https?:\/\//i.test(url || "")) return "";
+  return `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${esc(title || url)}" data-web>${html}</a>`;
+}
+function ipWebCell(r) {
+  const own = r.urls || [];
+  const text = esc(r.hostname || (own.length || r.web_auto ? "" : "–"));
+  if (own.length) return (r.hostname ? webLink(own[0].url, text, "", own[0].label ? `${own[0].label}: ${own[0].url}` : own[0].url) : "") +
+    own.slice(0, 3).map(u => webLink(u.url, "↗", "weblnk", u.label ? `${u.label}: ${u.url}` : u.url)).join("");
+  if (r.web_auto) return (r.hostname ? webLink(r.web_auto, text, "", r.web_auto + " (aus dem Netzwerk-Scan)") : "") +
+    webLink(r.web_auto, "↗", "weblnk auto", r.web_auto + " (aus dem Netzwerk-Scan)");
+  return text;
+}
+
 // Gerätename ist nur eine IP oder MAC (Netzwerk-Scan ohne Hostnamen)
 function isPlaceholder(name) {
   const v = (name || "").trim();

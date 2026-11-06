@@ -41,7 +41,7 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
 ## Netzwerk-Scan
 
 - Gescannt werden nur Netze, bei denen jemand mit Vollzugriff „beim Netzwerk-Scan berücksichtigen“ angehakt hat (IPv4,
-  höchstens /22). Der Scan versucht TCP-Verbindungen zu 18 gängigen Ports und fragt NetBIOS/DNS-Namen ab – keine Anmeldung,
+  höchstens /22). Der Scan versucht TCP-Verbindungen zu 21 gängigen Ports und fragt NetBIOS/DNS-Namen ab – keine Anmeldung,
   keine Exploits, kein Root. Bitte nur Netze scannen, für die du beauftragt bist; manche Sicherheitssysteme melden Scans.
 - Starten, Ergebnisse sehen und übernehmen nur mit Vollzugriff.
 

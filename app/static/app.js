@@ -612,3 +612,6 @@ $("pxSave").onclick = async () => {
     await loadProxy(); okMsg($("pxErr"), "Gespeichert.");
   } catch (e) { $("pxErr").textContent = e.message; }
 };
+
+// Web-Links in klickbaren Zeilen: nur den Link öffnen, nicht die Zeile
+document.addEventListener("click", (e) => { if (e.target.closest("a[data-web]")) e.stopPropagation(); }, true);

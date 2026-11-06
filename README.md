@@ -11,7 +11,7 @@ Lizenzen, Netzwerkplan und Zugangsdaten (verschlüsselt im Tresor). Sie läuft a
 eigenem Fenster in DSM. Die Daten bleiben beim Kunden; der IT-Dienstleister und eine Vertrauensperson beim Kunden
 haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 
-> **Stand 0.6:** Geräte, Netzwerk mit Netzwerk-Scan, Agent für Server und PCs (Windows, Linux, macOS), Lizenzen,
+> **Stand 0.7:** Geräte, Netzwerk mit Netzwerk-Scan, Agent für Server und PCs (Windows, Linux, macOS), Lizenzen,
 > Ansprechpartner, Zugangsdaten im verschlüsselten Tresor, Fristen-Mail, Notfall-Handbuch als PDF und CSV-Import –
 > siehe [Fahrplan](#fahrplan).
 
@@ -54,6 +54,9 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 - **Netzwerk-Scan** (von Hand oder nachts): findet unbekannte Geräte und legt sie mit einem Klick an, ergänzt MAC und
   Hostname, meldet abweichende MAC-Adressen und Geräte, die länger nicht erreichbar waren. Läuft ohne Root-Rechte und ohne
   Zusatzprogramme, nur in Netzen mit Haken „scannen“ (IPv4, höchstens /22).
+- **Web-Oberflächen:** pro Gerät beliebig viele Web-Adressen mit Bezeichnung (z. B. „DSM“, „Vaultwarden“, Proxmox
+  auf :8006) – als Knöpfe am Gerät, als ↗ in Geräte- und IP-Liste; der Hostname in der IP-Liste ist anklickbar. Ohne
+  eigene Adresse baut die App den Link aus den Web-Ports, die der Netzwerk-Scan gefunden hat (gestrichelt).
 - **Agent für Server und PCs** (Windows, Linux, macOS): meldet täglich Hardware, System, Datenträger, Netzwerk,
   installierte Software, Updates und Dienste – siehe [unten](#agent-für-server-und-pcs).
 - **CSV-Import für Geräte:** beliebige Inventarliste hochladen, Spalten zuordnen, Vorschau prüfen, importieren.
@@ -66,6 +69,8 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 | ![Geräte](docs/screenshots/geraete.png) | ![Lizenzen](docs/screenshots/lizenzen.png) | ![Kontakte](docs/screenshots/kontakte.png) |
 | **CSV-Import** | **Fristen-Mail** | **Netzwerk-Scan** |
 | ![CSV-Import](docs/screenshots/import.png) | ![Fristen-Mail](docs/screenshots/fristen-mail.png) | ![Netzwerk-Scan](docs/screenshots/netzwerk-scan.png) |
+| **Web-Oberflächen am Gerät** | **IP-Liste mit Links** | |
+| ![Web-Oberflächen](docs/screenshots/geraet-web.png) | ![IP-Liste mit Links](docs/screenshots/netzwerk-links.png) | |
 | **Vom Agent gemeldet** | **Agenten** | **Agent einrichten** |
 | ![Vom Agent gemeldet](docs/screenshots/agent-geraet.png) | ![Agenten](docs/screenshots/agenten.png) | ![Agent einrichten](docs/screenshots/agent-einrichten.png) |
 | **Suche** | **Stammdaten** | **Handy** |
@@ -176,6 +181,7 @@ wöchentlichen **Fristen-Mail**.
 | **0.4** ✔ | Komfort: Fristen-Mail (wöchentlich + Stichtage), PDF „Notfall-Handbuch“ (Kontakte, Internet, Netzwerk), CSV-Import für Geräte mit Spaltenzuordnung |
 | **0.5** ✔ | Netzwerk-Scan: neue Geräte übernehmen, MAC/Hostname ergänzen, Abweichungen, „zuletzt online“, nachts automatisch |
 | **0.6** ✔ | Agent für Server und PCs (Windows, Linux, macOS): Hardware, System, Datenträger, Netzwerk, Software, Updates und Dienste per HTTPS, Gerät wird gefunden oder angelegt, Hinweis bei stillen Agenten |
+| **0.7** ✔ | Web-Oberflächen pro Gerät (mehrere, mit Bezeichnung), anklickbarer Hostname, automatische Links aus dem Netzwerk-Scan |
 | später | Wiki-Seiten für Anleitungen, Verknüpfung mit dem Helpdesk aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) |
 
 ## Installation auf der Synology
@@ -303,6 +309,8 @@ customer's own NAS, in its own DSM window with single sign-on. The user interfac
 - 0.6: agent for servers and PCs (Windows PowerShell, Linux and macOS via Python standard library): daily HTTPS report
   of hardware, OS, disks, network, installed software, pending updates and services, per-agent key; devices are matched
   by serial number or host name or created; silent agents are flagged on the overview and in the weekly mail.
+- 0.7: web interfaces per device (several, labelled), clickable host names in the IP list, automatic links from ports
+  found by the network scan.
 - Planned: wiki pages, link to the Zeitmanagement helpdesk.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/it-doku/releases) →

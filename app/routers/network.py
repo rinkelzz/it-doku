@@ -335,6 +335,13 @@ def list_ips(network_id: Optional[int] = None, device_id: Optional[int] = None, 
         sql += " AND i.device_id = ?"
         args.append(device_id)
     rows = sorted((ip_out(r) for r in conn.execute(sql, args)), key=lambda x: ip_key(x["ip"]))
+    from .. import weburl
+    urls = weburl.device_urls(conn, sorted({r["device_id"] for r in rows if r["device_id"]}))
+    ports = weburl.latest_ports(conn, [r["ip"] for r in rows])
+    for r in rows:
+        own = urls.get(r["device_id"], []) if r["device_id"] else []
+        r["urls"] = own
+        r["web_auto"] = "" if own else weburl.auto_url(r["ip"], r["hostname"], ports.get(r["ip"], ""))
     if free and network_id:
         net = get_or_404(conn, "network", network_id)
         try:

@@ -2,6 +2,19 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.7.0] – 2026-11-06
+
+### Neu
+- **Web-Oberflächen pro Gerät:** beliebig viele Web-Adressen mit Bezeichnung (z. B. „DSM“, „Vaultwarden“,
+  „Proxmox“). Am Gerät als Knöpfe oben und im Abschnitt „Web-Oberflächen“ (hinzufügen, ändern, entfernen – mit
+  Verlauf); in der Geräteliste als ↗ hinter dem Namen; die Suche findet Geräte auch über Adresse und Bezeichnung.
+- **Hostname in der IP-Liste anklickbar** – öffnet die Web-Adresse des Geräts in einem neuen Tab. Ohne eigene
+  Adresse baut die App den Link aus den Web-Ports, die der Netzwerk-Scan gefunden hat (443/8443/5001/8006/9443 als
+  https, 80/8080/8123/5000 als http; Hostname, wenn er voll qualifiziert ist, sonst die IP) – gestrichelt markiert.
+- Am Gerät schlägt „Gefunden:“ solche Adressen zum Übernehmen mit einem Klick vor.
+- Netzwerk-Scan prüft zusätzlich die Ports 8006 (Proxmox), 8123 (Home Assistant) und 9443.
+- Nur `http://` und `https://` werden angenommen (kein `javascript:` o. ä.); Links öffnen mit `noopener noreferrer`.
+
 ## [0.6.3] – 2026-11-06
 
 ### Geändert

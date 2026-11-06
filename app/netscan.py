@@ -22,9 +22,9 @@ from .timeutil import now_utc, now_utc_str, to_utc_str
 
 MAX_HOSTS = 1022           # /22
 QUICK_PORTS = [445, 80, 443, 22, 3389, 9100, 5000, 8080]
-ALL_PORTS = [21, 22, 23, 53, 80, 139, 443, 445, 515, 554, 631, 1883, 3389, 5000, 5001, 8080, 8443, 9100]
+ALL_PORTS = [21, 22, 23, 53, 80, 139, 443, 445, 515, 554, 631, 1883, 3389, 5000, 5001, 8006, 8080, 8123, 8443, 9100, 9443]
 PORT_NAMES = {21: "FTP", 22: "SSH", 23: "Telnet", 53: "DNS", 80: "Web", 139: "NetBIOS", 443: "HTTPS", 445: "SMB",
-              515: "LPD", 554: "RTSP", 631: "IPP", 1883: "MQTT", 3389: "RDP", 5000: "DSM", 5001: "DSM", 8080: "Web",
+              515: "LPD", 554: "RTSP", 631: "IPP", 1883: "MQTT", 3389: "RDP", 5000: "DSM", 5001: "DSM", 8006: "Proxmox", 8080: "Web", 8123: "Home Assistant", 9443: "HTTPS",
               8443: "HTTPS", 9100: "Drucker"}
 THREADS = 128
 KEEP_RUNS = 10

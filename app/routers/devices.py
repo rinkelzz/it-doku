@@ -14,6 +14,8 @@ from ..db import audit, get_db
 from ..doku import (DEVICE_STATUS, LICENSE_KINDS, attachments, days_until, delete_attachments, diff, get_or_404,
                     history, insert_row, ip_key, log, strip_strings, update_row)
 from ..security import admin_user, current_user
+from .. import weburl
+from ..timeutil import now_utc_str
 from .network import IP_SELECT, ip_out
 
 router = APIRouter(prefix="/api/v1", tags=["Geräte"])
@@ -107,9 +109,12 @@ def list_devices(site_id: Optional[int] = None, type_id: Optional[int] = None,
         like = f"%{q.strip()}%"
         sql += (" AND (d.name LIKE ? OR d.model LIKE ? OR d.manufacturer LIKE ? OR d.serial LIKE ? OR d.inventory_no LIKE ?"
                 " OR d.room LIKE ? OR d.used_by LIKE ? OR d.id IN (SELECT device_id FROM ip_addresses WHERE ip LIKE ?"
-                " OR mac LIKE ? OR hostname LIKE ?))")
-        args += [like] * 10
+                " OR mac LIKE ? OR hostname LIKE ?) OR d.id IN (SELECT device_id FROM device_urls WHERE url LIKE ? OR label LIKE ?))")
+        args += [like] * 12
     rows = [_out(r) for r in conn.execute(sql + " ORDER BY t.sort, d.name COLLATE NOCASE", args)]
+    urls = weburl.device_urls(conn, [r["id"] for r in rows])
+    for r in rows:
+        r["urls"] = urls.get(r["id"], [])
     return rows
 
 
@@ -230,7 +235,63 @@ def device_detail(conn, device_id: int) -> dict:
         "WHERE k.a_id = ? OR k.b_id = ? ORDER BY o.name COLLATE NOCASE", (device_id, device_id, device_id))]
     out["files"] = attachments(conn, "device", device_id)
     out["history"] = history(conn, "device", device_id)
+    out["urls"] = weburl.device_urls(conn, [device_id]).get(device_id, [])
+    # Vorschläge für „＋ Web-Adresse“: aus Scan-Ports und voll qualifizierten Hostnamen
+    ports = weburl.latest_ports(conn, [i["ip"] for i in out["ip_list"]])
+    sugg = []
+    for i in out["ip_list"]:
+        for u in (weburl.auto_url(i["ip"], i["hostname"], ports.get(i["ip"], "")),
+                  f"https://{i['hostname']}" if "." in (i["hostname"] or "") and not i["hostname"].replace(".", "").isdigit() else ""):
+            if u and u not in sugg and u not in [x["url"] for x in out["urls"]]:
+                sugg.append(u)
+    out["url_suggestions"] = sugg[:6]
     return out
+
+
+# --- Web-Adressen ------------------------------------------------------------
+
+class UrlIn(BaseModel):
+    label: Optional[str] = Field("", max_length=100)
+    url: str = Field(..., max_length=500)
+
+
+@router.post("/devices/{device_id}/urls", status_code=201)
+def add_url(device_id: int, data: UrlIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    d = get_or_404(conn, "device", device_id)
+    url = weburl.clean(data.url)
+    if conn.execute("SELECT COUNT(*) FROM device_urls WHERE device_id = ?", (device_id,)).fetchone()[0] >= 20:
+        raise HTTPException(400, "Höchstens 20 Web-Adressen pro Gerät")
+    sort = conn.execute("SELECT COALESCE(MAX(sort), 0) + 1 FROM device_urls WHERE device_id = ?", (device_id,)).fetchone()[0]
+    cur = conn.execute("INSERT INTO device_urls(device_id, label, url, sort, created_at) VALUES (?, ?, ?, ?, ?)",
+                       (device_id, (data.label or "").strip(), url, sort, now_utc_str()))
+    log(conn, admin, "doc_updated", "device", device_id, d["name"], f"Web-Adresse hinzugefügt: {(data.label or '').strip() or url} ({url})")
+    return {"id": cur.lastrowid, "label": (data.label or "").strip(), "url": url}
+
+
+def _url_row(conn, url_id: int):
+    r = conn.execute("SELECT u.*, d.name AS device_name FROM device_urls u JOIN devices d ON d.id = u.device_id WHERE u.id = ?",
+                     (url_id,)).fetchone()
+    if not r:
+        raise HTTPException(404, "Web-Adresse nicht gefunden")
+    return r
+
+
+@router.patch("/device-urls/{url_id}")
+def update_url(url_id: int, data: UrlIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    r = _url_row(conn, url_id)
+    url = weburl.clean(data.url)
+    conn.execute("UPDATE device_urls SET label = ?, url = ? WHERE id = ?", ((data.label or "").strip(), url, url_id))
+    log(conn, admin, "doc_updated", "device", r["device_id"], r["device_name"],
+        f"Web-Adresse geändert: {r['label'] or r['url']} → {(data.label or '').strip() or url} ({url})")
+    return {"ok": True}
+
+
+@router.delete("/device-urls/{url_id}")
+def delete_url(url_id: int, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    r = _url_row(conn, url_id)
+    conn.execute("DELETE FROM device_urls WHERE id = ?", (url_id,))
+    log(conn, admin, "doc_updated", "device", r["device_id"], r["device_name"], f"Web-Adresse entfernt: {r['label'] or r['url']}")
+    return {"ok": True}
 
 
 @router.get("/devices/{device_id}")
