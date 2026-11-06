@@ -27,8 +27,14 @@
 <header>
   <h1 class="brand"><img class="brandIcon" src="static/icon.png" alt=""><img class="brandLogo hidden" alt="">
     <span><span>IT-Dokumentation</span><small class="brandCompany"></small></span></h1>
+  <div class="hsearch"><input id="gq" type="search" autocomplete="off" placeholder="Suchen … Gerät, IP, Seriennr., Person, Lizenz" aria-label="Suchen"><kbd>/</kbd>
+    <div class="sres hidden" id="gres"></div></div>
   <nav id="tabs">
     <button data-tab="home">Übersicht</button>
+    <button data-tab="devices">Geräte</button>
+    <button data-tab="network">Netzwerk</button>
+    <button data-tab="licenses">Lizenzen</button>
+    <button data-tab="contacts">Kontakte</button>
     <button data-tab="admin" class="admin hidden">Verwaltung</button>
   </nav>
   <button class="userchip" id="userChip" data-tab="me" title="Mein Zugang"><span class="av" id="userAv"></span><span class="lbl" id="userName"></span></button>
@@ -40,10 +46,86 @@
   <!-- ÜBERSICHT -->
   <div data-page="home" class="page hidden">
     <section class="card">
-      <h2 id="homeTitle">Übersicht</h2>
-      <p class="muted">Hier entsteht die IT-Dokumentation: Standorte, Ansprechpartner, Geräte, Lizenzen, Netzwerk und – verschlüsselt im
-        Tresor – Zugangsdaten. Das Fundament (Anmeldung, Benutzer, Datensicherung, Updates, Protokoll) steht bereits.</p>
-      <div class="stats" id="homeStats"></div>
+      <div class="toolbar"><h2 id="homeTitle">Übersicht</h2><select class="siteSel hidden" id="homeSite" aria-label="Standort"></select></div>
+      <div class="stats" style="margin-top:0" id="homeStats"></div>
+    </section>
+    <div class="g2">
+      <section class="card"><h2>Bald fällig <span class="muted small" style="font-weight:400">– nächste 90 Tage</span></h2><div id="homeDue"></div></section>
+      <section class="card"><h2>Im Notfall anrufen</h2><div id="homeSos"></div></section>
+    </div>
+    <div class="g2">
+      <section class="card"><h2>Standorte</h2><div id="homeSites"></div></section>
+      <section class="card"><h2>Zuletzt geändert</h2><div id="homeRecent"></div></section>
+    </div>
+    <div class="err" id="homeErr"></div>
+  </div>
+
+  <!-- GERÄTE -->
+  <div data-page="devices" class="page hidden">
+    <div class="split" id="devListView">
+      <aside class="card side" id="devSide"></aside>
+      <section class="card">
+        <select id="devMobileSel" class="mobileOnly" aria-label="Filter"></select>
+        <div class="toolbar"><h2 id="devTitle">Geräte</h2>
+          <div class="row"><input id="devQ" type="search" placeholder="Filtern …" style="width:200px" maxlength="100">
+            <button id="devCsv">CSV</button><button class="primary admin hidden" id="devNew">＋ Gerät</button></div></div>
+        <div class="err" id="devErr"></div>
+        <div class="scroll desktopOnly"><table class="list" id="devTable"></table></div>
+        <div class="mobileOnly"><div class="mcards" id="devCards"></div></div>
+      </section>
+    </div>
+    <div id="devDetail" class="hidden"></div>
+  </div>
+
+  <!-- NETZWERK -->
+  <div data-page="network" class="page hidden">
+    <section class="card">
+      <div class="toolbar"><h2 id="netTitle">Netze</h2>
+        <div class="row"><select class="siteSel hidden" id="netSite" aria-label="Standort"></select><button class="primary admin hidden" id="netNew">＋ Netz</button></div></div>
+      <div class="netgrid" id="netGrid"></div>
+      <div class="err" id="netErr"></div>
+    </section>
+    <div class="tgrid">
+      <section class="card">
+        <div class="toolbar"><h2 id="ipTitle">IP-Adressen</h2>
+          <div class="row"><label class="inline small"><input type="checkbox" id="ipFree"> freie anzeigen</label>
+            <input type="search" id="ipQ" placeholder="Filtern …" style="width:160px"><button class="primary admin hidden" id="ipNew">＋ IP</button></div></div>
+        <div class="scroll"><table class="list" id="ipTable"></table></div>
+        <div class="err" id="ipErr"></div>
+      </section>
+      <aside class="panel">
+        <div class="card"><div class="toolbar" style="margin-bottom:8px"><h3 style="margin:0 !important">Netzwerkplan</h3>
+          <div class="row admin hidden"><label class="btn mini" style="display:inline-block">Hochladen <input type="file" id="diagFile" accept="image/png,image/jpeg,application/pdf" hidden></label>
+            <button class="mini danger hidden" id="diagDel">Entfernen</button></div></div>
+          <div id="diagBox"></div><div class="err" id="diagErr"></div></div>
+        <div class="card"><div class="toolbar" style="margin-bottom:8px"><h3 style="margin:0 !important">Internetanschluss</h3>
+          <button class="mini admin hidden" id="ispEdit">Bearbeiten</button></div><div id="ispBox"></div></div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- LIZENZEN -->
+  <div data-page="licenses" class="page hidden">
+    <section class="card" id="licListView">
+      <div class="toolbar"><h2>Lizenzen</h2>
+        <div class="row"><div class="seg" id="licSeg"></div>
+          <input type="search" id="licQ" placeholder="Filtern …" style="width:180px" maxlength="100"><button class="primary admin hidden" id="licNew">＋ Lizenz</button></div></div>
+      <div class="scroll"><table class="list" id="licTable"></table></div>
+      <p class="muted small" style="margin:10px 0 0">„Genutzt“ zählt die zugeordneten Geräte – oder du trägst die Zahl von Hand ein (z. B. bei Benutzerlizenzen).
+        Domains, Zertifikate und Wartungsverträge gehören auch hierher: alles mit Ablaufdatum an einer Stelle.</p>
+      <div class="err" id="licErr"></div>
+    </section>
+    <div id="licDetail" class="hidden"></div>
+  </div>
+
+  <!-- KONTAKTE -->
+  <div data-page="contacts" class="page hidden">
+    <section class="card">
+      <div class="toolbar"><h2>Ansprechpartner</h2>
+        <div class="row"><div class="seg" id="ctSeg"></div>
+          <input type="search" id="ctQ" placeholder="Filtern …" style="width:160px" maxlength="100"><button class="primary admin hidden" id="ctNew">＋ Kontakt</button></div></div>
+      <div class="ctgrid" id="ctGrid"></div>
+      <div class="err" id="ctErr"></div>
     </section>
   </div>
 
@@ -51,6 +133,7 @@
   <div data-page="admin" class="page hidden">
     <nav class="subnav" id="adminNav" aria-label="Verwaltung">
       <button data-asec="benutzer">👥 Benutzer</button>
+      <button data-asec="stammdaten">🏷️ Stammdaten</button>
       <button data-asec="einstellungen">⚙️ Einstellungen</button>
       <button data-asec="mail">✉️ Mail</button>
       <button data-asec="system" title="Port, Datensicherung, Updates">💾 System</button>
@@ -81,6 +164,21 @@
         ein Benutzer mit gleichem Namen angelegt ist (oder das automatische Anlegen unter Einstellungen eingeschaltet ist).</p>
       <div class="err" id="uErr"></div>
     </section>
+
+    <div class="asec g2" data-asec="stammdaten">
+      <section class="card">
+        <div class="toolbar"><h2>Standorte</h2><button class="primary mini" id="siteNew">＋ Standort</button></div>
+        <div class="scroll"><table id="siteTable"></table></div>
+        <p class="muted small">Mit nur einem Standort blendet die App die Standort-Auswahl überall aus. Internetanschluss und Netzwerkplan pflegst du unter <b>Netzwerk</b>.</p>
+        <div class="err" id="siteErr"></div>
+      </section>
+      <section class="card">
+        <div class="toolbar"><h2>Gerätetypen</h2><button class="primary mini" id="typeNew">＋ Typ</button></div>
+        <div class="scroll"><table id="typeTable"></table></div>
+        <p class="muted small">Vorbelegt, frei änderbar. Typen mit Geräten lassen sich nur zusammenlegen, nicht einfach löschen.</p>
+        <div class="err" id="typeErr"></div>
+      </section>
+    </div>
 
     <section class="card asec" data-asec="einstellungen">
       <h2>Einstellungen</h2>
@@ -250,6 +348,8 @@
 </main>
 </div>
 
+<div id="sheet" class="sheet hidden" role="dialog" aria-modal="true"></div>
 <script src="static/app.js?v={{v}}"></script>
+<script src="static/doku.js?v={{v}}"></script>
 </body>
 </html>

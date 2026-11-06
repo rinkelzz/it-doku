@@ -63,8 +63,166 @@ CREATE TABLE IF NOT EXISTS app_settings (
 """)
 
 
+DEVICE_TYPES = [  # vorbelegt, in der Verwaltung frei änderbar
+    ("PC", "🖥️"), ("Laptop", "💻"), ("NAS / Server", "🗄️"), ("Drucker", "🖨️"), ("Switch", "🔀"),
+    ("Router / Firewall", "🌐"), ("Access Point", "📶"), ("Telefon / TK-Anlage", "☎️"), ("Kartenterminal", "💳"),
+    ("Smartphone / Tablet", "📱"), ("Sonstiges", "📦"),
+]
+
+
+def _m2_stammdaten(conn: sqlite3.Connection) -> None:
+    """Version 0.2: Standorte, Ansprechpartner, Gerätetypen, Geräte, Netze, IP-Adressen, Lizenzen, Anhänge."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS sites (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    name             TEXT NOT NULL,
+    address          TEXT NOT NULL DEFAULT '',
+    notes            TEXT NOT NULL DEFAULT '',
+    isp_provider     TEXT NOT NULL DEFAULT '',   -- Internetanschluss
+    isp_tariff       TEXT NOT NULL DEFAULT '',
+    isp_public_ip    TEXT NOT NULL DEFAULT '',
+    isp_customer_no  TEXT NOT NULL DEFAULT '',
+    isp_notes        TEXT NOT NULL DEFAULT '',
+    sort             INTEGER NOT NULL DEFAULT 0,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT
+);
+
+CREATE TABLE IF NOT EXISTS contacts (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT NOT NULL,
+    company      TEXT NOT NULL DEFAULT '',
+    role         TEXT NOT NULL DEFAULT '',
+    phone        TEXT NOT NULL DEFAULT '',
+    mobile       TEXT NOT NULL DEFAULT '',
+    email        TEXT NOT NULL DEFAULT '',
+    website      TEXT NOT NULL DEFAULT '',
+    customer_no  TEXT NOT NULL DEFAULT '',     -- Kundennummer beim Dienstleister
+    notes        TEXT NOT NULL DEFAULT '',
+    external     INTEGER NOT NULL DEFAULT 0,   -- externer Dienstleister
+    emergency    INTEGER NOT NULL DEFAULT 0,   -- „Im Notfall anrufen“
+    site_id      INTEGER REFERENCES sites(id) ON DELETE SET NULL,
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS device_types (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    name  TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    icon  TEXT NOT NULL DEFAULT '📦',
+    sort  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS devices (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    type_id         INTEGER NOT NULL REFERENCES device_types(id) ON DELETE RESTRICT,
+    site_id         INTEGER REFERENCES sites(id) ON DELETE SET NULL,
+    room            TEXT NOT NULL DEFAULT '',
+    manufacturer    TEXT NOT NULL DEFAULT '',
+    model           TEXT NOT NULL DEFAULT '',
+    serial          TEXT NOT NULL DEFAULT '',
+    inventory_no    TEXT NOT NULL DEFAULT '',
+    os              TEXT NOT NULL DEFAULT '',
+    used_by         TEXT NOT NULL DEFAULT '',
+    purchased_on    TEXT,                       -- YYYY-MM-DD
+    purchased_from  TEXT NOT NULL DEFAULT '',
+    warranty_until  TEXT,                       -- YYYY-MM-DD
+    status          TEXT NOT NULL DEFAULT 'active',   -- active | stock | retired
+    notes           TEXT NOT NULL DEFAULT '',
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_devices_site ON devices(site_id, status);
+CREATE INDEX IF NOT EXISTS idx_devices_type ON devices(type_id);
+
+CREATE TABLE IF NOT EXISTS device_links (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    a_id    INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    b_id    INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    note    TEXT NOT NULL DEFAULT '',            -- z. B. „Port 7“
+    CHECK (a_id <> b_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_links_pair ON device_links(a_id, b_id);
+CREATE INDEX IF NOT EXISTS idx_links_b ON device_links(b_id);
+
+CREATE TABLE IF NOT EXISTS networks (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    site_id    INTEGER REFERENCES sites(id) ON DELETE SET NULL,
+    name       TEXT NOT NULL,
+    vlan       INTEGER,
+    cidr       TEXT NOT NULL DEFAULT '',        -- z. B. 192.168.10.0/24
+    gateway    TEXT NOT NULL DEFAULT '',
+    dhcp_from  TEXT NOT NULL DEFAULT '',
+    dhcp_to    TEXT NOT NULL DEFAULT '',
+    dns        TEXT NOT NULL DEFAULT '',
+    notes      TEXT NOT NULL DEFAULT '',
+    sort       INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ip_addresses (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    network_id  INTEGER REFERENCES networks(id) ON DELETE CASCADE,
+    ip          TEXT NOT NULL,
+    device_id   INTEGER REFERENCES devices(id) ON DELETE SET NULL,
+    mac         TEXT NOT NULL DEFAULT '',
+    hostname    TEXT NOT NULL DEFAULT '',
+    kind        TEXT NOT NULL DEFAULT 'static',  -- static | reservation | dhcp
+    notes       TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ip_network ON ip_addresses(network_id);
+CREATE INDEX IF NOT EXISTS idx_ip_device ON ip_addresses(device_id);
+
+CREATE TABLE IF NOT EXISTS licenses (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind          TEXT NOT NULL DEFAULT 'software',  -- software | subscription | maintenance | domain | certificate | other
+    name          TEXT NOT NULL,
+    vendor        TEXT NOT NULL DEFAULT '',
+    term          TEXT NOT NULL DEFAULT '',          -- Laufzeit/Art, z. B. „Abo, jährlich“, „Kauf“, „OEM“
+    seats         INTEGER,                            -- NULL = unbegrenzt / nicht gezählt
+    seats_used    INTEGER,                            -- von Hand; NULL = zugeordnete Geräte zählen
+    expires_on    TEXT,                               -- YYYY-MM-DD, NULL = unbefristet
+    contract_ref  TEXT NOT NULL DEFAULT '',           -- Vertrag / Kundennummer / Tenant
+    notes         TEXT NOT NULL DEFAULT '',
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT
+);
+
+CREATE TABLE IF NOT EXISTS license_devices (
+    license_id  INTEGER NOT NULL REFERENCES licenses(id) ON DELETE CASCADE,
+    device_id   INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    PRIMARY KEY (license_id, device_id)
+);
+CREATE INDEX IF NOT EXISTS idx_licdev_device ON license_devices(device_id);
+
+CREATE TABLE IF NOT EXISTS attachments (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_type  TEXT NOT NULL,                  -- device | license | contact | site | network
+    owner_id    INTEGER NOT NULL,
+    role        TEXT NOT NULL DEFAULT 'file',   -- file | diagram (Netzwerkplan eines Standorts)
+    name        TEXT NOT NULL,
+    mime        TEXT NOT NULL,
+    size        INTEGER NOT NULL,
+    data        BLOB NOT NULL,                  -- in der Datenbank, damit die Sicherung alles enthält
+    created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_att_owner ON attachments(owner_type, owner_id);
+""")
+    if not conn.execute("SELECT 1 FROM device_types LIMIT 1").fetchone():
+        for i, (name, icon) in enumerate(DEVICE_TYPES):
+            conn.execute("INSERT INTO device_types(name, icon, sort) VALUES (?, ?, ?)", (name, icon, i))
+    if not conn.execute("SELECT 1 FROM sites LIMIT 1").fetchone():
+        conn.execute("INSERT INTO sites(name, created_at) VALUES ('Hauptstandort', ?)", (now_utc_str(),))
+
+
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
+    2: _m2_stammdaten,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 

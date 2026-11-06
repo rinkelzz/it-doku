@@ -69,7 +69,8 @@ const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { ret
                 set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* egal */ } } };
 
 // ---------- Start, Anmeldung, Reiter ----------
-const TABS = ["home", "admin", "me"];
+const TABS = ["home", "devices", "network", "licenses", "contacts", "admin", "me"];
+const DOC_TABS = ["home", "devices", "network", "licenses", "contacts"];
 const firstTab = () => "home";
 function showLogin() {
   $("appView").classList.add("hidden"); $("loginView").classList.remove("hidden");
@@ -111,7 +112,7 @@ async function start() {
   applyMode();
   const [wanted, sec] = ((location.hash || "").slice(1) || store.get("tab") || firstTab()).split("/");
   if (sec && wanted === "admin") store.set("asec", sec);
-  await showTab(TABS.includes(wanted) && (wanted !== "admin" || isAdmin()) ? wanted : firstTab());
+  await showTab(TABS.includes(wanted) && (wanted !== "admin" || isAdmin()) ? wanted : firstTab(), wanted === "admin" ? "" : sec);
 }
 
 function showMe() {
@@ -120,32 +121,26 @@ function showMe() {
   $("userChip").title = "Mein Zugang" + (state.me.via_dsm ? " (über DSM angemeldet)" : "");
 }
 
-async function showTab(name) {
-  state.tab = name;
+async function showTab(name, sub) {
+  state.tab = name; state.sub = sub || "";
   $$("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   $("userChip").classList.toggle("active", name === "me");
   $$(".page").forEach(p => p.classList.toggle("hidden", p.dataset.page !== name));
   store.set("tab", name);
-  history.replaceState(null, "", "#" + name + (name === "admin" ? "/" + (store.get("asec") || "einstellungen") : ""));
+  history.replaceState(null, "", "#" + name + (name === "admin" ? "/" + (store.get("asec") || "einstellungen") : sub ? "/" + sub : ""));
   try {
-    if (name === "home") await loadHome();
+    if (DOC_TABS.includes(name) && window.docShow) await docShow(name, sub || "");
     if (name === "admin") { showAdminSec(store.get("asec") || "einstellungen"); await loadAdmin(); }
     if (name === "me") loadMe();
   } catch (e) { console.error(e); }
 }
 
-// ---------- Übersicht ----------
-async function loadHome() {
-  const company = (state.branding && state.branding.company_name) || "";
-  $("homeTitle").textContent = company ? `IT-Dokumentation – ${company}` : "Übersicht";
-}
-
 // ---------- Verwaltung ----------
-const ADMIN_SECS = ["benutzer", "einstellungen", "mail", "system", "protokoll"];
+const ADMIN_SECS = ["benutzer", "stammdaten", "einstellungen", "mail", "system", "protokoll"];
 function showAdminSec(key) {
   if (!ADMIN_SECS.includes(key)) key = "einstellungen";
   $$("#adminNav [data-asec]").forEach(b => b.classList.toggle("active", b.dataset.asec === key));
-  $$('[data-page="admin"] section.asec').forEach(sec => sec.classList.toggle("hidden", sec.dataset.asec !== key));
+  $$('[data-page="admin"] .asec').forEach(sec => sec.classList.toggle("hidden", sec.dataset.asec !== key));
   store.set("asec", key);
   if (state.tab === "admin") history.replaceState(null, "", "#admin/" + key);
 }
@@ -159,6 +154,7 @@ async function loadAdmin() {
   state.users = await api("users");
   showUsers();
   jobs.push(initAudit().catch(e => { $("alErr").textContent = e.message; }));
+  if (window.loadStammdaten) jobs.push(loadStammdaten().catch(e => { $("siteErr").textContent = e.message; }));
   await Promise.all(jobs);
 }
 
@@ -513,6 +509,11 @@ $("logoDel").onclick = async () => {
 $("loginBtn").onclick = login;
 ["lu", "lp", "lo"].forEach(id => $(id).addEventListener("keydown", e => { if (e.key === "Enter") login(); }));
 $$("#tabs button, #userChip").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+window.addEventListener("hashchange", () => {
+  if (!state.me) return;
+  const [t, sub] = (location.hash || "").slice(1).split("/");
+  if (DOC_TABS.includes(t) && (t !== state.tab || (sub || "") !== (state.sub || ""))) showTab(t, sub || "");
+});
 $$("#adminNav [data-asec]").forEach(b => b.onclick = () => showAdminSec(b.dataset.asec));
 $("uShowInactive").onchange = showUsers;
 $("nuSave").onclick = createUser;

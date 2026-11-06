@@ -23,7 +23,8 @@ AUTH_CGI = os.environ.get("ITD_AUTH_CGI", "/usr/syno/synoman/webman/modules/auth
 ID_CMD = os.environ.get("ITD_ID_CMD", "id")
 USER_RE = re.compile(r"^[A-Za-z0-9._@\-\\ ]{1,64}$")
 PASS_HEADERS = ("CONTENT_TYPE", "HTTP_ACCEPT", "HTTP_ACCEPT_LANGUAGE", "HTTP_X_SESSION_TOKEN")
-RETURN_HEADERS = ("content-type", "content-disposition", "cache-control", "etag", "last-modified")
+RETURN_HEADERS = ("content-type", "content-disposition", "cache-control", "etag", "last-modified",
+                  "x-content-type-options", "content-security-policy")
 
 
 def out(status, headers, body=b""):

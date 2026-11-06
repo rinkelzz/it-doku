@@ -11,8 +11,8 @@ Lizenzen, Netzwerkplan und Zugangsdaten (verschlüsselt im Tresor). Sie läuft a
 eigenem Fenster in DSM. Die Daten bleiben beim Kunden; der IT-Dienstleister und eine Vertrauensperson beim Kunden
 haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 
-> **Stand 0.1:** Das Fundament steht (Anmeldung, Benutzer, Datensicherung, Updates, Protokoll). Die eigentliche
-> Dokumentation kommt in den nächsten Stufen – siehe [Fahrplan](#fahrplan).
+> **Stand 0.2:** Geräte, Netzwerk, Lizenzen und Ansprechpartner sind da. Zugangsdaten im verschlüsselten Tresor
+> folgen mit 0.3 – siehe [Fahrplan](#fahrplan).
 
 ![Übersicht](docs/screenshots/uebersicht.png)
 
@@ -31,6 +31,30 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 - [English](#english)
 
 ## Funktionen
+
+### Dokumentation
+
+- **Übersicht:** Zahlen, **„Bald fällig“** (Lizenzen, Domains, Zertifikate, Garantien), **„Im Notfall anrufen“**,
+  Standorte und zuletzt Geändertes.
+- **Geräte** mit frei pflegbaren Typen, Standort, Raum, Seriennummer, Garantie und Status (aktiv, im Lager, ausgemustert).
+  Im Detail: IP-Adressen, Lizenzen, **„Verbunden mit“** (Switch-Port, Drucker), Notizen, Anhänge und Verlauf. CSV-Export.
+- **Netzwerk:** Netze/VLANs pro Standort, IP-Liste mit Gerät, Hostname und MAC (auf Wunsch mit freien Adressen),
+  **Netzwerkplan** als Bild oder PDF und **Internetanschluss**.
+- **Lizenzen**, Abos, Wartungsverträge, Domains und Zertifikate – alles mit Ablaufdatum an einer Stelle, mit Plätzen
+  und Geräte-Zuordnung.
+- **Ansprechpartner** beim Kunden und externe Dienstleister mit Kundennummer, Notfall-Markierung.
+- **Globale Suche** (Taste `/`) über Geräte, IP-/MAC-Adressen, Seriennummern, Personen, Telefonnummern, Lizenzen und Netze.
+- **Anhänge** (PNG, JPG, PDF bis 10 MB) an Geräten und Lizenzen – in der Datenbank, also in jeder Sicherung.
+
+| Übersicht | Gerät | Netzwerk |
+|---|---|---|
+| ![Übersicht](docs/screenshots/uebersicht.png) | ![Gerät](docs/screenshots/geraet.png) | ![Netzwerk](docs/screenshots/netzwerk.png) |
+| **Geräte** | **Lizenzen** | **Kontakte** |
+| ![Geräte](docs/screenshots/geraete.png) | ![Lizenzen](docs/screenshots/lizenzen.png) | ![Kontakte](docs/screenshots/kontakte.png) |
+| **Suche** | **Stammdaten** | **Handy** |
+| ![Suche](docs/screenshots/suche.png) | ![Stammdaten](docs/screenshots/stammdaten.png) | ![Handy](docs/screenshots/handy.png) |
+
+### Plattform
 
 - **Eigenes Fenster in DSM** mit Single Sign-on: DSM-Administratoren sind ohne weitere Anmeldung drin.
 - **Anmeldung** mit eigenem Konto oder DSM-Konto (inklusive Zwei-Faktor-Code), Login-Sperre gegen Durchprobieren.
@@ -78,9 +102,9 @@ Zugangsdaten und Lizenzschlüssel liegen ab Stufe 2 verschlüsselt in der Datenb
 | Version | Inhalt |
 |---|---|
 | **0.1** ✔ | Fundament: SPK, DSM-Fenster, Single Sign-on, Benutzer, Sicherung, Updates, Protokoll |
-| 0.2 | Stammdaten: Standorte, Ansprechpartner (auch externe Dienstleister), Geräte mit frei pflegbaren Typen, Lizenzen, Netze/VLANs mit IP-Liste, Netzwerkdiagramm als Bild, globale Suche |
+| **0.2** ✔ | Stammdaten: Standorte, Ansprechpartner, Geräte mit frei pflegbaren Typen und Verbindungen, Lizenzen inkl. Domains und Zertifikate, Netze/VLANs mit IP-Liste, Netzwerkplan, Internetanschluss, Anhänge, Verlauf, globale Suche |
 | 0.3 | Tresor: Zugangsdaten mit Tresor-Passwort, Notfall-Schlüssel, Auto-Sperre, Kopieren-Knopf, Passwort-Generator, verschlüsselte Lizenzschlüssel |
-| 0.4 | Komfort: Sammel-Mail zu ablaufenden Lizenzen, Garantien, Zertifikaten und Domains; PDF „Notfall-Handbuch“ (ohne und – bei geöffnetem Tresor – mit Passwörtern); CSV-Import für Geräte; Anhänge |
+| 0.4 | Komfort: Sammel-Mail zu ablaufenden Lizenzen, Garantien, Zertifikaten und Domains; PDF „Notfall-Handbuch“ (ohne und – bei geöffnetem Tresor – mit Passwörtern); CSV-Import für Geräte |
 | später | 2FA-Codes (TOTP) im Tresor, Netzwerk-Scan, Wiki-Seiten für Anleitungen, Verknüpfung mit dem Helpdesk aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) |
 
 ## Installation auf der Synology
@@ -184,7 +208,10 @@ customer's own NAS, in its own DSM window with single sign-on. The user interfac
 - One noarch package for Intel/AMD and ARM, no native libraries; uses the NAS's Python 3.8–3.13.
 - 0.1 (foundation): DSM login incl. 2FA, users with full or read-only access, company name and logo, four themes,
   nightly backups to a shared folder (for Hyper Backup), updates through Package Center, audit log, configurable port.
-- Planned: master data (0.2), credential vault with per-user vault passwords and a printable recovery key (0.3),
+- 0.2 (documentation): overview with upcoming expiries and emergency contacts, devices with custom types, links,
+  attachments and history, networks/VLANs with IP list and network diagram, internet connection, licenses incl.
+  domains and certificates, contacts, global search.
+- Planned: credential vault with per-user vault passwords and a printable recovery key (0.3),
   expiry reminders, emergency handbook PDF and CSV import (0.4).
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/it-doku/releases) →

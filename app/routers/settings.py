@@ -14,6 +14,7 @@ from .. import portcfg
 from ..config import THEMES, settings as app_settings
 from ..csvsafe import row as safe_row
 from ..db import audit, get_db, get_setting, set_setting
+from ..doku import KINDS as DOC_KINDS
 from ..dsm import write_ui_config
 from ..mailer import MailError, send_mail, smtp_config, valid_email
 from ..security import admin_user, current_user
@@ -158,9 +159,14 @@ def mail_test(data: MailTestIn, admin=Depends(admin_user), conn: sqlite3.Connect
 
 # --- Änderungsprotokoll -------------------------------------------------------
 
-AUDIT_CATEGORIES = {"anmeldung": "Anmeldung", "benutzer": "Benutzer", "einstellungen": "Einstellungen",
+AUDIT_CATEGORIES = {"doku": "Dokumentation", "anmeldung": "Anmeldung", "benutzer": "Benutzer", "einstellungen": "Einstellungen",
                     "sicherung": "Datensicherung"}
 AUDIT_ACTIONS = {
+    "doc_created": ("doku", "Angelegt"),
+    "doc_updated": ("doku", "Geändert"),
+    "doc_deleted": ("doku", "Gelöscht"),
+    "file_added": ("doku", "Anhang hinzugefügt"),
+    "file_deleted": ("doku", "Anhang gelöscht"),
     "login": ("anmeldung", "Anmeldung"),
     "password_changed": ("anmeldung", "Passwort geändert"),
     "profile_updated": ("benutzer", "Eigenes Profil geändert"),
@@ -229,6 +235,9 @@ def _rows(conn, where, args, limit, before_id=None):
         cat, label = AUDIT_ACTIONS.get(r["action"], ("", r["action"]))
         target = r["target"] or ""
         subject = names.get(int(target[5:])) if target.startswith("user:") and target[5:].isdigit() else ""
+        kind = target.split(":", 1)[0]
+        if not subject and kind in DOC_KINDS and kind != "user":
+            subject = DOC_KINDS[kind][1]
         out.append({"id": r["id"], "ts_local": local_iso(r["ts"]), "actor": r["actor"] or "System",
                     "subject": subject or "", "category": cat, "label": label, "action": r["action"],
                     "text": _text(r["details"], names)})

@@ -26,6 +26,11 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
   die Login-Sperre greift dann nur noch pro Benutzername.
 - **Keine Klartext-Zugangsdaten in Sicherungen:** Das SMTP-Passwort wird vor dem Sichern entfernt (inklusive
   `VACUUM`, damit es auch nicht in freien Seiten der Datei steht). Der Tresor (ab 0.3) liegt darin nur verschlüsselt.
+- **Anhänge** (Netzwerkplan, Rechnungen, Fotos): nur PNG, JPG und PDF, erkannt am **Inhalt** (SVG/HTML werden
+  abgelehnt), höchstens 10 MB, schon beim Empfang begrenzt. Hochladen und Löschen nur mit Vollzugriff. Ausgeliefert
+  mit `X-Content-Type-Options: nosniff` und `Content-Security-Policy: sandbox`; PDFs immer als Download.
+- **Lesezugriff:** Alle ändernden Schnittstellen verlangen Vollzugriff – auch wenn die Oberfläche die Knöpfe
+  ohnehin ausblendet.
 - **CSV-Exporte** entschärfen Zellen, die mit `=`, `+`, `-`, `@`, Tab oder CR beginnen (Formel-Injection).
 - **Paketquelle** (`/spk`) nur aus dem lokalen Netz erreichbar.
 
