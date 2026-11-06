@@ -29,6 +29,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Aus PowerShell 7 heraus gestartet, erbt Windows PowerShell 5.1 dessen Modulpfade – dann laden eingebaute Module nicht
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+  $machine = [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine')
+  if ($machine) { $env:PSModulePath = "$env:ProgramFiles\WindowsPowerShell\Modules;$machine" }
+}
 $AgentVersion = '1.0'
 $Dir = Join-Path $env:ProgramData 'ITDoku'
 $ConfFile = Join-Path $Dir 'config.json'
@@ -234,7 +239,7 @@ function Install-Agent {
     $acct = (New-Object Security.Principal.SecurityIdentifier $sid)
     $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule $acct, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
   }
-  Set-Acl -Path $Dir -AclObject $acl
+  (Get-Item -LiteralPath $Dir).SetAccessControl($acl)
   $conf | ConvertTo-Json | Set-Content -Path $ConfFile -Encoding UTF8
   if ($PSCommandPath -and ((Resolve-Path $PSCommandPath).Path -ne $ScriptFile)) { Copy-Item -Path $PSCommandPath -Destination $ScriptFile -Force }
   $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ScriptFile`" -Run"
