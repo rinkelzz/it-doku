@@ -248,6 +248,25 @@ def device_detail(conn, device_id: int) -> dict:
     return out
 
 
+# --- Doppelte Geräte zusammenführen ------------------------------------------
+
+class MergeIn(BaseModel):
+    other_id: int = Field(..., description="dieses Gerät geht im aktuellen auf und wird gelöscht")
+
+
+@router.get("/devices/{device_id}/duplicates")
+def duplicates(device_id: int, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    from .. import merge
+    get_or_404(conn, "device", device_id)
+    return merge.candidates(conn, device_id)
+
+
+@router.post("/devices/{device_id}/merge")
+def merge_device(device_id: int, data: MergeIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    from .. import merge
+    return merge.merge(conn, admin, device_id, data.other_id)
+
+
 # --- Web-Adressen ------------------------------------------------------------
 
 class UrlIn(BaseModel):

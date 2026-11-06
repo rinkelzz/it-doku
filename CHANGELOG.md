@@ -2,6 +2,19 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.8.2] – 2026-11-06
+
+### Neu
+- **Doppelte Geräte zusammenführen:** Am Gerät erscheint ein Hinweis „Möglicherweise doppelt erfasst“, wenn ein anderes
+  Gerät dieselbe MAC-Adresse, Seriennummer oder denselben Namen/Hostnamen hat; außerdem gibt es den Knopf ⇄. Das
+  gewählte Gerät geht im aktuellen auf: IP-Adressen, Lizenzen, Verbindungen, Zugangsdaten, Anhänge, Web-Adressen und
+  ein Agent wandern mit, leere Felder werden ergänzt, Notizen angehängt – in einer Transaktion, mit Verlauf.
+
+### Behoben
+- Ein neuer Agent findet ein vom **Netzwerk-Scan** angelegtes Gerät jetzt auch über die **MAC-Adresse** (vorher nur über
+  Seriennummer und Name – ein Scan-Gerät ohne Hostnamen wurde dadurch doppelt angelegt). IP-Adressen ohne Gerät übernimmt
+  der Agent für sein Gerät.
+
 ## [0.8.1] – 2026-11-06
 
 ### Behoben

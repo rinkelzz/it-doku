@@ -329,12 +329,13 @@ async function showDevice(id) {
   const kv = (pairs) => `<dl class="kv">${pairs.filter(([, v]) => v).map(([k, v, cls]) => `<dt>${k}</dt><dd${cls ? ` class="${cls}"` : ""}>${v}</dd>`).join("")}</dl>`;
   const adm = isAdmin();
   box.innerHTML = `<div class="crumbs"><a data-back>Geräte</a> › ${esc(d.type_name)} › ${esc(d.name)}</div>
+  <div class="httpwarn hidden" id="devDup" style="margin:12px 0 0;display:flex;gap:12px;align-items:center;justify-content:space-between"></div>
   <div class="tgrid" style="margin-top:12px">
     <section class="card">
       <div class="dhead"><span class="ti">${esc(d.type_icon)}</span><div><h2>${esc(d.name)}</h2>
         <div class="row"><span class="tag ${d.status === "active" ? "okk" : ""}">${esc(d.status_label)}</span><span class="tag">${esc(d.type_name)}</span>
           ${d.site_name || d.room ? `<span class="tag">📍 ${esc([multiSite() ? d.site_name : "", d.room].filter(Boolean).join(" · "))}</span>` : ""}</div></div>
-        <div class="row">${d.urls.slice(0, 3).map(u => webLink(u.url, `↗ ${esc(u.label || urlHost(u.url))}`, "linkbtn")).join("")}${adm ? "<button data-edit>Bearbeiten</button>" : ""}</div></div>
+        <div class="row">${d.urls.slice(0, 3).map(u => webLink(u.url, `↗ ${esc(u.label || urlHost(u.url))}`, "linkbtn")).join("")}${adm ? '<button data-merge title="Doppelten Eintrag in dieses Gerät übernehmen">⇄</button><button data-edit>Bearbeiten</button>' : ""}</div></div>
       <div class="fgrid">
         ${kv([["Hersteller", esc(d.manufacturer)], ["Modell", esc(d.model)], ["Seriennummer", esc(d.serial), "mono"], ["Inventar-Nr.", esc(d.inventory_no), "mono"]])}
         ${kv([["Betriebssystem", esc(d.os)], ["Benutzt von", esc(d.used_by)],
@@ -379,6 +380,17 @@ async function showDevice(id) {
   const reload = () => showDevice(id);
   box.querySelector("[data-back]").onclick = () => go("devices");
   if (window.agentPanel) agentPanel(d, reload);
+  if (adm) {
+    box.querySelector("[data-merge]").onclick = () => mergeForm(d, [], reload);
+    api(`devices/${id}/duplicates`).then(dups => {
+      const el = $("devDup");
+      if (!el || !dups.length) return;
+      el.classList.remove("hidden");
+      el.innerHTML = `<span>Möglicherweise doppelt erfasst: ${dups.map(x => `<b>${esc(x.icon)} ${esc(x.name)}</b> <span class="muted">(${esc(x.reason)})</span>`).join(", ")}</span>
+        <button>Zusammenführen …</button>`;
+      el.querySelector("button").onclick = () => mergeForm(d, dups, reload);
+    }).catch(() => {});
+  }
   if (!adm) { bindFiles(box, reload); return; }
   if (window.credPanel) credPanel($("devCreds"), "device", d.id);
   box.querySelector("[data-edit]").onclick = () => deviceForm(d);
@@ -950,6 +962,27 @@ $("dlSend").onclick = async () => {
 
 // ---------- Netzwerk-Scan ----------
 const DAY_MS = 86400000;
+// ---------- Doppelte Geräte zusammenführen ----------
+async function mergeForm(d, dups, reload) {
+  const all = (await api("devices?status=all")).filter(x => x.id !== d.id);
+  const first = dups.map(x => x.id);
+  const opts = dups.map(x => [x.id, `${x.icon} ${x.name} – ${x.reason}`])
+    .concat(all.filter(x => !first.includes(x.id)).map(x => [x.id, `${x.type_icon} ${x.name}`]));
+  openForm({ title: `In „${d.name}“ zusammenführen`, narrow: true, fields: [
+    { k: "other_id", label: "Doppelten Eintrag übernehmen", type: "select", int: true, options: opts }],
+    values: { other_id: opts.length ? opts[0][0] : null },
+    hint: `Das gewählte Gerät geht in „${d.name}“ auf und wird danach gelöscht: IP-Adressen, Lizenzen, Verbindungen, Zugangsdaten,
+      Anhänge, Web-Adressen und ein Agent wandern mit; leere Felder (Hersteller, Seriennummer, Standort …) werden ergänzt, Notizen angehängt.
+      Name und Typ von „${d.name}“ bleiben.`,
+    save: async (v) => {
+      if (!v.other_id) throw new Error("Bitte ein Gerät wählen");
+      const other = opts.find(o => o[0] === v.other_id);
+      if (!confirm(`„${other ? other[1] : "Gerät"}“ wirklich in „${d.name}“ zusammenführen? Das lässt sich nicht rückgängig machen (außer über die Datensicherung).`)) throw new Error("Abgebrochen.");
+      await api(`devices/${d.id}/merge`, { method: "POST", body: { other_id: v.other_id } });
+      reload();
+    } });
+}
+
 // ---------- Web-Adressen ----------
 const urlHost = (u) => { try { return new URL(u).host; } catch (e) { return u; } };
 function webLink(url, html, cls = "", title = "") {

@@ -309,6 +309,13 @@ def match_device(conn: sqlite3.Connection, rep: Dict[str, Any]) -> Optional[int]
                          (serial,)).fetchone()
         if r:
             return r["id"]
+    # MAC-Adresse: steht oft schon vom Netzwerk-Scan an einer IP des Geräts
+    macs = [i["mac"] for i in rep["network"]["interfaces"] if i["mac"]]
+    if macs:
+        r = conn.execute(f"SELECT d.id FROM ip_addresses i JOIN devices d ON d.id = i.device_id "
+                         f"WHERE UPPER(i.mac) IN ({','.join('?' * len(macs))}) {taken} ORDER BY d.id LIMIT 1", macs).fetchone()
+        if r:
+            return r["id"]
     host = rep["hostname"].split(".")[0]
     if host:
         r = conn.execute(f"SELECT d.id FROM devices d WHERE d.name = ? COLLATE NOCASE {taken} ORDER BY d.id LIMIT 1",
@@ -383,6 +390,11 @@ def _sync_ips(conn: sqlite3.Connection, device: sqlite3.Row, rep: Dict[str, Any]
                 continue
             nid = network_for(conn, ip)
             row = conn.execute("SELECT * FROM ip_addresses WHERE ip = ? AND network_id IS ?", (ip, nid)).fetchone()
+            if row and row["device_id"] is None:
+                conn.execute("UPDATE ip_addresses SET device_id = ?, last_seen = ?, mac = CASE WHEN mac = '' THEN ? ELSE mac END "
+                             "WHERE id = ?", (device["id"], now, i["mac"], row["id"]))
+                log(conn, None, "doc_updated", "device", device["id"], device["name"], f"IP {ip} zugeordnet (Agent)")
+                continue
             if row:
                 if row["device_id"] == device["id"]:
                     conn.execute("UPDATE ip_addresses SET last_seen = ?, mac = CASE WHEN mac = '' THEN ? ELSE mac END "
