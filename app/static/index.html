@@ -272,12 +272,13 @@
       </section>
       <section class="card">
         <h2>Einstellungen</h2>
-        <label>Adresse für Agenten <input id="agUrl" placeholder="https://doku.kunde.de"></label>
-        <p class="muted small" style="margin-top:4px">So erreichen die Agenten die IT-Dokumentation:<br>
-          <b>Von außen</b>: DSM → Systemsteuerung → Anmeldeportal → Erweitert → Reverse Proxy, Quelle <span class="mono">https://doku.kunde.de</span>
-          (Port 443, Zertifikat von Let's Encrypt), Ziel <span class="mono">http://localhost:<span id="agPort">8780</span></span>.<br>
-          <b>Per VPN</b>: die interne Adresse, z. B. <span class="mono">http://192.168.10.5:<span id="agPort2">8780</span></span> – unverschlüsselt nur im VPN/LAN sinnvoll
-          (der Agent fragt dafür eine Bestätigung ab).</p>
+        <label>Im LAN / per VPN <input id="agUrlLan" class="mono" placeholder="automatisch"></label>
+        <p class="muted small" style="margin-top:4px" id="agLanHint">Leer lassen = automatisch die Adresse der NAS im LAN. Unverschlüsselt (http://) –
+          der Einrichtungsbefehl bestätigt das ausdrücklich, für Rechner im Büro oder im VPN.</p>
+        <label>Von außen (optional) <input id="agUrl" class="mono" placeholder="https://agent.kunde.de"></label>
+        <p class="muted small" style="margin-top:4px">Für Rechner außerhalb (Cloud-Server, Homeoffice ohne VPN): https-Adresse eines Reverse Proxys –
+          DSM (Anmeldeportal → Erweitert → Reverse Proxy, Ziel <span class="mono">http://localhost:<span id="agPort">8780</span></span>) oder ein eigener
+          Nginx (dann unter System → Eigener Reverse Proxy eintragen).</p>
         <label>Als „still“ melden nach <select id="agStale"><option value="1">1 Tag</option><option value="2">2 Tagen</option>
           <option value="3">3 Tagen</option><option value="7">7 Tagen</option><option value="14">14 Tagen</option></select></label>
         <p class="muted small">Stille Agenten erscheinen auf der Übersicht und in der wöchentlichen Fristen-Mail.</p>

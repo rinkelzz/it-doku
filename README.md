@@ -156,11 +156,12 @@ Entfernen: `sudo itdoku-agent --uninstall` bzw.
 `powershell -ExecutionPolicy Bypass -File C:\ProgramData\ITDoku\itdoku-agent.ps1 -Uninstall`.
 Ansehen, was gesendet würde, ohne zu senden: `--print` bzw. `-Print`.
 
-**Erreichbarkeit** (Adresse unter Verwaltung → Agenten eintragen):
-- **Von außen:** Reverse Proxy mit https wie unten beschrieben – die Agenten nutzen nur `/api/agent/v1/report` und
-  zum Herunterladen `/agent/…`.
-- **Per VPN/LAN:** die interne Adresse, z. B. `http://192.168.10.5:8780`. Unverschlüsselt muss im Befehl ausdrücklich
-  bestätigt werden (`--allow-http` / `-AllowHttp`).
+**Erreichbarkeit** (Verwaltung → Agenten → Einstellungen; beim Einrichten wählst du pro Agent „Im LAN / VPN“ oder
+„Von außen“):
+- **Im LAN / per VPN:** ist schon voreingestellt – automatisch `http://<IP der NAS>:<Port>`, bei Bedarf überschreibbar.
+  Unverschlüsselt; der Einrichtungsbefehl bestätigt das ausdrücklich (`--allow-http` / `-AllowHttp`).
+- **Von außen:** https-Adresse eines Reverse Proxys wie unten beschrieben – die Agenten nutzen nur
+  `/api/agent/v1/report` und zum Herunterladen `/agent/…`.
 
 Meldet sich ein Agent länger nicht (Standard: 3 Tage), erscheint ein Hinweis auf der **Übersicht**, am Gerät und in der
 wöchentlichen **Fristen-Mail**.

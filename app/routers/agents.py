@@ -2,6 +2,8 @@
 import csv
 import io
 import json
+import re
+import socket
 import sqlite3
 from pathlib import Path
 from typing import Optional
@@ -101,19 +103,48 @@ SELECT = ("SELECT a.*, d.name AS device_name, t.icon AS device_icon FROM agents 
           "LEFT JOIN device_types t ON t.id = d.type_id")
 
 
+def lan_ip() -> str:
+    """IPv4-Adresse der NAS im LAN (die Schnittstelle der Standardroute; es wird nichts gesendet)."""
+    ip = ""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("192.0.2.1", 9))
+            ip = s.getsockname()[0]
+        finally:
+            s.close()
+    except OSError:
+        pass
+    if not ip or ip.startswith("127."):
+        try:
+            ip = socket.gethostbyname(socket.gethostname())
+        except OSError:
+            ip = ""
+    return "" if ip.startswith("127.") else ip
+
+
+def _urls(conn, request: Request) -> dict:
+    """Adresse im LAN/VPN (eingetragen oder automatisch http://<NAS-IP>:<Port>) und von außen (https, falls eingetragen)."""
+    detected = lan_ip()
+    auto = f"http://{detected}:{settings.port}" if detected else ""
+    lan = (get_setting(conn, "agent_url_lan") or auto).strip().rstrip("/")
+    ext = (get_setting(conn, "agent_url") or get_setting(conn, "public_url") or settings.public_url or "").strip().rstrip("/")
+    if not lan and not ext:
+        lan = str(request.base_url).rstrip("/")
+    return {"lan": lan, "external": ext, "lan_auto": auto}
+
+
 def _agent_url(conn, request: Request) -> str:
-    url = (get_setting(conn, "agent_url") or get_setting(conn, "public_url") or settings.public_url or "").strip().rstrip("/")
-    if not url:
-        url = str(request.base_url).rstrip("/")
-    return url
+    u = _urls(conn, request)
+    return u["external"] or u["lan"]
 
 
 @router.get("/api/v1/agents")
 def list_agents(request: Request, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
     days = agents.stale_days(conn)
     return {"agents": [_agent_out(conn, r, days) for r in conn.execute(SELECT + " ORDER BY a.name COLLATE NOCASE")],
-            "settings": {"agent_url": get_setting(conn, "agent_url"), "suggested_url": _agent_url(conn, request),
-                         "stale_days": days, "port": settings.port}}
+            "settings": {"agent_url": get_setting(conn, "agent_url"), "agent_url_lan": get_setting(conn, "agent_url_lan"),
+                         "urls": _urls(conn, request), "stale_days": days, "port": settings.port}}
 
 
 class AgentIn(BaseModel):
@@ -140,7 +171,7 @@ def create_agent(data: AgentIn, request: Request, admin=Depends(admin_user), con
         "INSERT INTO agents(name, platform, device_id, token_hash, token_hint, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (data.name.strip(), platform, data.device_id, agents.token_hash(token), agents.hint(token), admin["id"], now_utc_str()))
     audit(conn, admin["id"], "agent_created", f"agent:{cur.lastrowid}", data.name.strip())
-    return {"id": cur.lastrowid, "token": token, "url": _agent_url(conn, request)}
+    return {"id": cur.lastrowid, "token": token, "url": _agent_url(conn, request), "urls": _urls(conn, request)}
 
 
 @router.post("/api/v1/agents/{agent_id}/token")
@@ -150,7 +181,7 @@ def renew_token(agent_id: int, request: Request, admin=Depends(admin_user), conn
     conn.execute("UPDATE agents SET token_hash = ?, token_hint = ?, updated_at = ? WHERE id = ?",
                  (agents.token_hash(token), agents.hint(token), now_utc_str(), agent_id))
     audit(conn, admin["id"], "agent_token", f"agent:{agent_id}", f"{a['name']}: neuer Schlüssel (alter ungültig)")
-    return {"id": agent_id, "token": token, "url": _agent_url(conn, request)}
+    return {"id": agent_id, "token": token, "url": _agent_url(conn, request), "urls": _urls(conn, request)}
 
 
 class AgentPatch(BaseModel):
@@ -190,16 +221,20 @@ def delete_agent(agent_id: int, admin=Depends(admin_user), conn: sqlite3.Connect
 
 class AgentSettings(BaseModel):
     agent_url: Optional[str] = Field(None, max_length=300)
+    agent_url_lan: Optional[str] = Field(None, max_length=300)
     stale_days: Optional[int] = Field(None, ge=1, le=60)
 
 
 @router.patch("/api/v1/agents-settings")
 def agent_settings(data: AgentSettings, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
-    if data.agent_url is not None:
-        url = data.agent_url.strip().rstrip("/")
-        if url and not url.lower().startswith(("https://", "http://")):
+    for key in ("agent_url", "agent_url_lan"):
+        val = getattr(data, key)
+        if val is None:
+            continue
+        url = val.strip().rstrip("/")
+        if url and not re.match(r"^https?://[^/\s]+", url, re.I):
             raise HTTPException(400, "Die Adresse muss mit https:// (oder intern http://) beginnen")
-        set_setting(conn, "agent_url", url)
+        set_setting(conn, key, url)
     if data.stale_days is not None:
         set_setting(conn, "agent_stale_days", str(data.stale_days))
     audit(conn, admin["id"], "settings_updated", "agents", f"Agenten: {data.model_dump(exclude_unset=True)}")

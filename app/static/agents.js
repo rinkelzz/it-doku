@@ -33,27 +33,41 @@ const AG_NOTES = {
   linux: "Als Benutzer mit sudo einfügen. Installiert nach /usr/local/bin, legt einen systemd-Timer an (täglich und nach dem Start; ohne systemd einen Cron-Eintrag) und schickt sofort den ersten Bericht. Braucht nur Python 3 (Standardbibliothek).",
   macos: "Im Terminal einfügen (Administrator). Legt einen LaunchDaemon an (täglich und beim Start) und schickt sofort den ersten Bericht. Python 3 kommt mit den Command Line Tools (<span class=\"mono\">xcode-select --install</span>).",
 };
-function agSetup(name, token, url, platform) {
+function agSetup(name, token, urls, platform) {
   let plat = platform || "windows";
+  const choices = [urls.lan ? ["lan", "Im LAN / VPN", urls.lan] : null, urls.external ? ["external", "Von außen", urls.external] : null].filter(Boolean);
+  let where = choices[0][0];
+  let url = choices[0][2];
   $("sheet").innerHTML = `<div class="card">
     <div class="toolbar"><h2>Agent „${esc(name)}“ einrichten</h2><button data-x title="Schließen">✕</button></div>
     <p class="small" style="margin:0">Schlüssel – <b>nur jetzt sichtbar</b>: <span class="mono">${esc(token)}</span> <button class="mini" data-copytok>⧉ kopieren</button></p>
-    <div class="seg" style="margin:12px 0 8px">${Object.entries(AG_PLAT).map(([k, l]) => `<button data-plat="${k}">${l}</button>`).join("")}</div>
+    <div class="row" style="margin:12px 0 8px;gap:12px;flex-wrap:wrap">
+      <div class="seg">${Object.entries(AG_PLAT).map(([k, l]) => `<button data-plat="${k}">${l}</button>`).join("")}</div>
+      ${choices.length > 1 ? `<div class="seg">${choices.map(([k, l]) => `<button data-where="${k}">${l}</button>`).join("")}</div>` : ""}
+    </div>
+    <p class="muted small" style="margin:0 0 6px">Adresse: <span class="mono" data-url></span></p>
     <div class="cmd" data-cmd></div>
     <div class="row" style="margin-top:8px"><button class="primary" data-copycmd>⧉ Befehl kopieren</button><span class="muted small" data-ok></span></div>
     <p class="muted small" data-note></p>
-    ${url.startsWith("http://") ? '<div class="httpwarn small">Die Adresse ist unverschlüsselt (http://) – nur über VPN oder im LAN verwenden. Für den Weg übers Internet einen Reverse Proxy mit https eintragen (Verwaltung → Agenten → Einstellungen).</div>' : ""}
+    <div class="httpwarn small hidden" data-httpw>Unverschlüsselt (http://) – nur für Rechner im LAN oder per VPN. Für Rechner draußen unter
+      Einstellungen eine https-Adresse „von außen“ eintragen.</div>
     <div class="row"><button data-x>Fertig</button></div></div>`;
   $("sheet").classList.remove("hidden");
   const card = $("sheet").firstElementChild;
-  const cmds = agCommands(url, token);
+  let cmds;
   const show = () => {
+    url = choices.find(c => c[0] === where)[2];
+    cmds = agCommands(url, token);
     $$("[data-plat]", card).forEach(b => b.classList.toggle("on", b.dataset.plat === plat));
+    $$("[data-where]", card).forEach(b => b.classList.toggle("on", b.dataset.where === where));
+    card.querySelector("[data-url]").textContent = url;
+    card.querySelector("[data-httpw]").classList.toggle("hidden", !url.startsWith("http://") || where !== "external");
     card.querySelector("[data-cmd]").textContent = cmds[plat];
     card.querySelector("[data-note]").innerHTML = AG_NOTES[plat];
   };
   show();
   $$("[data-plat]", card).forEach(b => b.onclick = () => { plat = b.dataset.plat; show(); });
+  $$("[data-where]", card).forEach(b => b.onclick = () => { where = b.dataset.where; show(); });
   const copy = async (text) => {
     try { await navigator.clipboard.writeText(text); okMsg(card.querySelector("[data-ok]"), "Kopiert."); }
     catch (e) { card.querySelector("[data-ok]").textContent = "Kopieren nicht möglich – bitte markieren und kopieren."; }
@@ -67,7 +81,7 @@ async function agRenew(a, after) {
   if (!confirm(`Neuen Schlüssel für „${a.name}“ erzeugen? Der alte Schlüssel wird sofort ungültig – der Agent muss mit dem neuen Befehl neu eingerichtet werden.`)) return;
   try {
     const r = await api(`agents/${a.id}/token`, { method: "POST" });
-    agSetup(a.name, r.token, r.url, a.platform);
+    agSetup(a.name, r.token, r.urls, a.platform);
     if (after) after();
   } catch (e) { alert(e.message); }
 }
@@ -80,9 +94,12 @@ async function agToggle(a, after) {
 async function loadAgents() {
   const r = await api("agents");
   agState.list = r.agents; agState.settings = r.settings;
+  const u = r.settings.urls;
+  $("agUrlLan").value = r.settings.agent_url_lan || "";
+  $("agUrlLan").placeholder = u.lan_auto ? `${u.lan_auto} (automatisch)` : "http://192.168.10.5:8780";
   $("agUrl").value = r.settings.agent_url || "";
-  $("agUrl").placeholder = r.settings.suggested_url || "https://doku.kunde.de";
-  $("agPort").textContent = $("agPort2").textContent = r.settings.port;
+  $("agUrl").placeholder = u.external && !r.settings.agent_url ? u.external : "https://agent.kunde.de";
+  $("agPort").textContent = r.settings.port;
   const st = $("agStale");
   if (![...st.options].some(o => o.value === String(r.settings.stale_days))) st.insertAdjacentHTML("beforeend", `<option value="${r.settings.stale_days}">${r.settings.stale_days} Tagen</option>`);
   st.value = String(r.settings.stale_days);
@@ -127,7 +144,7 @@ async function agNew() {
     save: async (v) => {
       if (!v.name) throw new Error("Bitte einen Namen angeben");
       const r = await api("agents", { method: "POST", body: { name: v.name, platform: v.platform, device_id: v.device_id || null } });
-      setTimeout(() => agSetup(v.name, r.token, r.url, v.platform), 0);
+      setTimeout(() => agSetup(v.name, r.token, r.urls, v.platform), 0);
       loadAgents();
     } });
 }
@@ -135,7 +152,8 @@ $("agNew").onclick = () => agNew().catch(e => { $("agErr").textContent = e.messa
 $("agSave").onclick = async () => {
   $("agSetErr").textContent = "";
   try {
-    await api("agents-settings", { method: "PATCH", body: { agent_url: $("agUrl").value.trim(), stale_days: Number($("agStale").value) } });
+    await api("agents-settings", { method: "PATCH", body: { agent_url: $("agUrl").value.trim(), agent_url_lan: $("agUrlLan").value.trim(),
+      stale_days: Number($("agStale").value) } });
     await loadAgents(); okMsg($("agSetErr"), "Gespeichert.");
   } catch (e) { $("agSetErr").textContent = e.message; }
 };

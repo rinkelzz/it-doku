@@ -386,7 +386,8 @@ DEFAULT_SETTINGS = {
     "scan_last_day": "",
     "scan_stale_days": "30",
     # Agenten: Adresse, unter der Agenten die App erreichen (Reverse Proxy mit https oder intern per VPN)
-    "agent_url": "",
+    "agent_url": "",          # von außen (https über Reverse Proxy)
+    "agent_url_lan": "",      # im LAN/VPN; leer = automatisch http://<IP der NAS>:<Port>
     "agent_stale_days": "3",
     # Eigener Reverse Proxy im LAN (z. B. Nginx Proxy Manager), dem X-Forwarded-For geglaubt wird
     "trusted_proxies": "",

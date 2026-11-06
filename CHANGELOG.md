@@ -2,6 +2,13 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.6.3] – 2026-11-06
+
+### Geändert
+- **Agent-Adresse im LAN ist voreingestellt:** automatisch `http://<IP der NAS>:<Port>` (bei Bedarf überschreibbar).
+  Daneben optional eine Adresse „von außen“ (https über Reverse Proxy). Beim Einrichten eines Agenten wählst du
+  „Im LAN / VPN“ oder „Von außen“, der Befehl passt sich an.
+
 ## [0.6.2] – 2026-11-06
 
 ### Neu

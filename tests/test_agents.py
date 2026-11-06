@@ -171,7 +171,13 @@ def test_stale_agents_overview_and_mail(admin):
     assert "Hinweise" in subject and "AGENTEN" in body and "filiale-pc (PRAXIS-DC)" in body
     admin.patch("/api/v1/agents-settings", json={"stale_days": 7, "agent_url": "http://10.8.0.1:8780/"})
     assert admin.get("/api/v1/overview").json()["agents_stale"] == []
-    assert admin.get("/api/v1/agents").json()["settings"]["suggested_url"] == "http://10.8.0.1:8780"
+    u = admin.get("/api/v1/agents").json()["settings"]["urls"]
+    assert u["external"] == "http://10.8.0.1:8780"
+    assert u["lan"] == u["lan_auto"] and u["lan"].endswith(":8780") or u["lan"] == ""
+    admin.patch("/api/v1/agents-settings", json={"agent_url_lan": "http://192.168.10.5:8780"})
+    r = admin.post("/api/v1/agents", json={"name": "lan"}).json()
+    assert r["urls"]["lan"] == "http://192.168.10.5:8780" and r["urls"]["external"] == "http://10.8.0.1:8780"
+    assert admin.patch("/api/v1/agents-settings", json={"agent_url_lan": "192.168.10.5"}).status_code == 400
     assert admin.patch("/api/v1/agents-settings", json={"agent_url": "ftp://x"}).status_code == 400
 
 
