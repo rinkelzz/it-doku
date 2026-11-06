@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from .. import netscan
 from ..db import audit, get_db, get_setting, set_setting
-from ..doku import get_or_404, insert_row, log, parse_ip
+from ..doku import get_or_404, insert_row, is_placeholder_name, log, parse_ip
 from ..security import admin_user
 from ..timeutil import local_iso, now_utc_str
 
@@ -133,7 +133,12 @@ def fill(data: FillIn, admin=Depends(admin_user), conn: sqlite3.Connection = Dep
         conn.execute(f"UPDATE ip_addresses SET {', '.join(sets)}, updated_at = ? WHERE id = ?", args + [now_utc_str(), it.ip_id])
         if row["device_id"]:
             d = get_or_404(conn, "device", row["device_id"])
-            log(conn, admin, "doc_updated", "device", d["id"], d["name"], f"IP {row['ip']}: {'; '.join(parts)} (Netzwerk-Scan)")
+            name = d["name"]
+            if it.hostname and is_placeholder_name(d["name"]):
+                name = it.hostname.strip().split(".")[0][:100] or d["name"]
+                conn.execute("UPDATE devices SET name = ?, updated_at = ? WHERE id = ?", (name, now_utc_str(), d["id"]))
+                parts.append(f"Name: {d['name']} → {name}")
+            log(conn, admin, "doc_updated", "device", d["id"], name, f"IP {row['ip']}: {'; '.join(parts)} (Netzwerk-Scan)")
         n += 1
     return {"updated": n}
 

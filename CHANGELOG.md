@@ -2,6 +2,18 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.6.1] – 2026-11-06
+
+### Neu
+- **Spalten sortieren:** Klick auf einen Spaltenkopf sortiert die Listen Geräte, IP-Adressen, Lizenzen und Agenten
+  (zweiter Klick absteigend, dritter wieder wie geliefert). IP-Adressen werden richtig der Zahl nach sortiert
+  (…10.9 vor …10.77), Daten nach Datum. Die Sortierung bleibt im Browser gespeichert.
+- **Geräte benennen direkt in der IP-Liste:** Geräte, die nur eine IP- oder MAC-Adresse als Namen haben (z. B. vom
+  Netzwerk-Scan ohne Hostnamen), sind kursiv markiert und haben einen ✎-Knopf; bei allen anderen erscheint er beim
+  Überfahren. Name und Typ lassen sich dort ändern, ein bekannter Hostname wird vorgeschlagen.
+- Solche Geräte bekommen ihren Namen automatisch, sobald der Netzwerk-Scan einen Hostnamen findet und man ihn
+  übernimmt, oder sobald ein Agent seinen Rechnernamen meldet. Von Hand vergebene Namen bleiben unangetastet.
+
 ## [0.6.0] – 2026-11-06
 
 ### Neu

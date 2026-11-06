@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from typing import Dict, List, Optional, Tuple
 
+from .doku import is_placeholder_name
 from .timeutil import now_utc, now_utc_str, to_utc_str
 
 MAX_HOSTS = 1022           # /22
@@ -313,7 +314,8 @@ def results(conn, stale_days: int = 30) -> Dict:
             elif (not k["mac"] and mac) or (not k["hostname"] and h["hostname"]):
                 out["fill"].append({"ip_id": k["id"], "ip": h["ip"], "device_id": k["device_id"], "device_name": k["device_name"],
                                     "device_icon": k["device_icon"], "mac": mac if not k["mac"] else "",
-                                    "hostname": h["hostname"] if not k["hostname"] else ""})
+                                    "hostname": h["hostname"] if not k["hostname"] else "",
+                                    "rename": h["hostname"].split(".")[0] if h["hostname"] and is_placeholder_name(k["device_name"] or "") else ""})
     limit = to_utc_str(now_utc() - timedelta(days=stale_days))
     for r in conn.execute(
             "SELECT i.*, d.name AS device_name, d.status, t.icon AS device_icon, n.first_scan_at FROM ip_addresses i "

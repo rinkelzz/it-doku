@@ -263,11 +263,12 @@ async function loadDevices() {
   $("devTitle").innerHTML = `${esc(typeName || "Geräte")} <span class="muted small" style="font-weight:400">· ${rows.length}${doc.dev.status ? " " + STATUS[doc.dev.status] : ""}</span>`;
   const warr = (d) => d.warranty_until ? `<span class="tag ${d.warranty_days < 0 ? "" : d.warranty_days <= 90 ? "warn" : ""}">${monthYear(d.warranty_until)}</span>` : '<span class="muted">–</span>';
   $("devTable").innerHTML = `<thead><tr><th>Gerät</th><th>IP-Adresse</th><th>Raum</th><th>Benutzt von</th><th>Seriennummer</th><th>Garantie</th></tr></thead><tbody>` +
-    (rows.map(d => `<tr data-id="${d.id}"><td><div class="nm"><span class="ti">${esc(d.type_icon)}</span><div><b>${esc(d.name)}</b>
+    (rows.map(d => `<tr data-id="${d.id}"><td data-sort="${esc(d.name)}"><div class="nm"><span class="ti">${esc(d.type_icon)}</span><div><b class="${isPlaceholder(d.name) ? "unnamed" : ""}">${esc(d.name)}</b>
       <small>${esc([[d.manufacturer, d.model].filter(Boolean).join(" "), d.os].filter(Boolean).join(" · "))}${d.status !== "active" ? ` · <i>${esc(d.status_label)}</i>` : ""}</small></div></div></td>
       <td class="mono">${esc(d.ips || "–")}</td><td>${esc(d.room || "–")}${multiSite() && !doc.site && d.site_name ? `<small class="muted" style="display:block">${esc(d.site_name)}</small>` : ""}</td><td>${esc(d.used_by || "–")}</td>
-      <td class="mono">${esc(d.serial || "–")}</td><td>${warr(d)}</td></tr>`).join("") ||
+      <td class="mono">${esc(d.serial || "–")}</td><td data-sort="${esc(d.warranty_until || "")}">${warr(d)}</td></tr>`).join("") ||
       `<tr><td colspan="7" class="emptyrow">${doc.dev.q || doc.dev.type ? "Keine Geräte für diese Auswahl." : "Noch keine Geräte erfasst." + (isAdmin() ? " Mit „＋ Gerät“ geht es los." : "")}</td></tr>`) + "</tbody>";
+  sortTable($("devTable"));
   $$("#devTable [data-id]").forEach(tr => tr.onclick = () => go("devices", tr.dataset.id));
   $("devCards").innerHTML = rows.map(d => `<div class="mcard" data-id="${d.id}"><span class="ti">${esc(d.type_icon)}</span>
     <div><b>${esc(d.name)}</b><small>${esc([d.ips, d.room].filter(Boolean).join(" · ") || d.model || "")}</small></div>
@@ -464,11 +465,18 @@ async function loadIps(net) {
   const scanned = !!net.first_scan_at;
   $("ipTable").innerHTML = `<thead><tr><th>IP</th><th>Gerät</th><th>Hostname</th><th>MAC</th><th>Hinweis</th>${scanned ? "<th>zuletzt online</th>" : ""}</tr></thead><tbody>` +
     (rows.map(r => r.free ? `<tr class="free" data-free="${esc(r.ip)}"><td class="mono">${esc(r.ip)}</td><td colspan="${scanned ? 5 : 4}">frei</td></tr>`
-      : `<tr data-ip="${r.id}"><td class="mono">${scanned ? seenDot(r.last_seen) : ""}${esc(r.ip)}</td><td>${r.device_id ? `${esc(r.device_icon)} ${esc(r.device_name)}` : '<span class="muted">–</span>'}</td>
-        <td class="mono">${esc(r.hostname || "–")}</td><td class="mono">${esc(r.mac || "–")}</td><td class="wrap small">${esc([r.kind !== "static" ? r.kind_label : "", r.notes].filter(Boolean).join(" · "))}</td>${scanned ? `<td class="small">${seenText(r.last_seen)}</td>` : ""}</tr>`).join("") +
+      : `<tr data-ip="${r.id}"><td class="mono">${scanned ? seenDot(r.last_seen) : ""}${esc(r.ip)}</td><td data-sort="${esc(r.device_name || "")}">${r.device_id ? `${esc(r.device_icon)} <span class="${isPlaceholder(r.device_name) ? "unnamed" : ""}">${esc(r.device_name)}</span>${isAdmin()
+          ? `<button class="mini renm${isPlaceholder(r.device_name) ? " show" : ""}" data-ren="${r.device_id}" title="Gerät umbenennen">✎</button>` : ""}` : '<span class="muted">–</span>'}</td>
+        <td class="mono">${esc(r.hostname || "–")}</td><td class="mono">${esc(r.mac || "–")}</td><td class="wrap small">${esc([r.kind !== "static" ? r.kind_label : "", r.notes].filter(Boolean).join(" · "))}</td>${scanned ? `<td class="small" data-sort="${esc(r.last_seen || "")}">${seenText(r.last_seen)}</td>` : ""}</tr>`).join("") +
      (net.dhcp_from && !q ? `<tr class="free"><td class="mono">${esc(dhcpRange(net.dhcp_from, net.dhcp_to))}</td><td colspan="4">DHCP-Bereich</td></tr>` : "") ||
      '<tr><td colspan="5" class="emptyrow">Keine IP-Adressen.</td></tr>') + "</tbody>";
+  sortTable($("ipTable"));
   const reload = () => loadNetwork();
+  $$("#ipTable [data-ren]").forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    const r = rows.find(x => x.device_id === Number(b.dataset.ren));
+    renameDevice(r.device_id, r.device_name, r.hostname, reload).catch(err => { $("ipErr").textContent = err.message; });
+  });
   $$("#ipTable [data-ip]").forEach(tr => tr.onclick = () => {
     const r = rows.find(x => x.id === Number(tr.dataset.ip));
     if (isAdmin()) ipForm(r, {}, reload); else if (r.device_id) go("devices", r.device_id);
@@ -568,11 +576,12 @@ async function loadLicenses() {
     .map(([k, l]) => `<button data-f="${k}" class="${doc.lic.filter === k ? "on" : ""}">${l}</button>`).join("");
   $$("#licSeg [data-f]").forEach(b => b.onclick = () => { doc.lic.filter = b.dataset.f; loadLicenses(); });
   $("licTable").innerHTML = `<thead><tr><th>Name</th><th>Art / Laufzeit</th><th class="num">Genutzt</th><th>Läuft ab</th><th>Vertrag / Kd.-Nr.</th></tr></thead><tbody>` +
-    (rows.map(l => `<tr data-id="${l.id}"><td><div class="nm"><span class="ti">${LIC_ICON[l.kind] || "🔑"}</span><div><b>${esc(l.name)}</b><small>${esc(l.vendor)}</small></div></div></td>
+    (rows.map(l => `<tr data-id="${l.id}"><td data-sort="${esc(l.name)}"><div class="nm"><span class="ti">${LIC_ICON[l.kind] || "🔑"}</span><div><b>${esc(l.name)}</b><small>${esc(l.vendor)}</small></div></div></td>
       <td>${esc(l.kind_label)}${l.term && l.term !== l.kind_label ? `<small class="muted" style="display:block">${esc(l.term)}</small>` : ""}</td>
-      <td class="num">${l.seats != null ? `<span class="${l.used > l.seats ? "tag bad" : ""}">${l.used} / ${l.seats}</span>` : l.used ? `${l.used} / ∞` : "–"}</td>
-      <td>${dueTag(l.expires_on, l.days, true)}</td><td class="mono">${esc(l.contract_ref || "–")}</td></tr>`).join("") ||
+      <td class="num" data-sort="${l.used || 0}">${l.seats != null ? `<span class="${l.used > l.seats ? "tag bad" : ""}">${l.used} / ${l.seats}</span>` : l.used ? `${l.used} / ∞` : "–"}</td>
+      <td data-sort="${esc(l.expires_on || "")}">${dueTag(l.expires_on, l.days, true)}</td><td class="mono">${esc(l.contract_ref || "–")}</td></tr>`).join("") ||
      `<tr><td colspan="5" class="emptyrow">${doc.lic.filter || doc.lic.q ? "Keine Lizenzen für diese Auswahl." : "Noch keine Lizenzen erfasst."}</td></tr>`) + "</tbody>";
+  sortTable($("licTable"));
   $$("#licTable [data-id]").forEach(tr => tr.onclick = () => go("licenses", tr.dataset.id));
 }
 $("licQ").oninput = debounce(() => { doc.lic.q = $("licQ").value.trim(); loadLicenses(); });
@@ -909,6 +918,25 @@ $("dlSend").onclick = async () => {
 
 // ---------- Netzwerk-Scan ----------
 const DAY_MS = 86400000;
+// Gerätename ist nur eine IP oder MAC (Netzwerk-Scan ohne Hostnamen)
+function isPlaceholder(name) {
+  const v = (name || "").trim();
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(v) || /^[0-9a-f]{2}([:-][0-9a-f]{2}){5}$/i.test(v) || (/^[0-9a-f:]+$/i.test(v) && v.includes("::"));
+}
+async function renameDevice(id, name, hostname, after) {
+  const d = await api(`devices/${id}`);
+  const sugg = hostname && !isPlaceholder(hostname) ? hostname.split(".")[0] : "";
+  openForm({ title: "Gerät benennen", narrow: true, fields: [
+    { k: "name", label: "Name", max: 100, ph: sugg || "z. B. Drucker Empfang" },
+    { k: "type_id", label: "Typ", type: "select", int: true, options: doc.types.map(t => [t.id, `${t.icon} ${t.name}`]) }],
+    values: { name: isPlaceholder(d.name) ? sugg : d.name, type_id: d.type_id },
+    hint: isPlaceholder(d.name) ? `Bisher heißt das Gerät nur „${d.name}“.` : "",
+    save: async (v) => {
+      if (!v.name) throw new Error("Bitte einen Namen eintragen");
+      await api(`devices/${id}`, { method: "PATCH", body: { name: v.name, type_id: v.type_id } }); after();
+    } });
+}
+
 function seenDot(ts) {
   if (!ts) return '<span class="dot off" title="beim Scan nie gesehen"></span>';
   const age = Date.now() - new Date(ts).getTime();
@@ -961,7 +989,7 @@ async function loadScan() {
     <h3>✏️ Ergänzen <span class="tag">${r.fill.length}</span></h3>
     ${r.fill.length ? `<div class="scroll"><table><thead><tr><th>Gerät</th><th>IP</th><th>wird ergänzt</th><th></th></tr></thead><tbody>
       ${r.fill.map((f, i) => `<tr><td>${f.device_id ? `${esc(f.device_icon)} <a href="#devices/${f.device_id}">${esc(f.device_name)}</a>` : '<span class="muted">ohne Gerät</span>'}</td><td class="mono">${esc(f.ip)}</td>
-        <td class="mono small">${[f.mac ? "MAC " + esc(f.mac) : "", f.hostname ? "Hostname " + esc(f.hostname) : ""].filter(Boolean).join(" · ")}</td>
+        <td class="mono small">${[f.mac ? "MAC " + esc(f.mac) : "", f.hostname ? "Hostname " + esc(f.hostname) : "", f.rename ? "Name → " + esc(f.rename) : ""].filter(Boolean).join(" · ")}</td>
         <td class="num"><button class="mini primary" data-fill="${i}">übernehmen</button></td></tr>`).join("")}</tbody></table></div>
       <div class="row" style="margin-top:8px"><button data-fill-all>Alle ${r.fill.length} übernehmen</button></div>` : '<p class="muted small">Nichts zu ergänzen.</p>'}
 

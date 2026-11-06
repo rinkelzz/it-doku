@@ -94,9 +94,10 @@ async function loadAgents() {
       return `<tr data-ag="${a.id}" class="click" title="Bearbeiten, sperren, neuer Schlüssel"><td><b>${esc(a.name)}</b>${a.disabled ? ' <span class="tag off">gesperrt</span>' : ""}<br><small class="muted mono">${esc(a.token_hint)}</small></td>
       <td>${a.device_id ? `<a href="#devices/${a.device_id}">${esc(a.device_icon || "🖥️")} ${esc(a.device_name)}</a>` : '<span class="muted">wird beim ersten Bericht zugeordnet</span>'}</td>
       <td>${esc(a.os_name || a.platform_label || "–")}${warn.length ? `<br>${warn.map(w => `<span class="tag warn">${esc(w)}</span>`).join(" ")}` : ""}</td>
-      <td class="nowrap">${a.last_report_at ? (a.stale ? `<span class="tag bad">${agAgo(a.last_report_at)}</span>` : agAgo(a.last_report_at)) : '<span class="muted">wartet</span>'}</td>
+      <td class="nowrap" data-sort="${esc(a.last_report_at || "")}">${a.last_report_at ? (a.stale ? `<span class="tag bad">${agAgo(a.last_report_at)}</span>` : agAgo(a.last_report_at)) : '<span class="muted">wartet</span>'}</td>
 </tr>`;
     }).join("")}</tbody>` : '<tbody><tr><td class="muted">Noch kein Agent. Mit „＋ Agent“ einen Schlüssel erzeugen und den angezeigten Befehl auf dem Server ausführen.</td></tr></tbody>';
+  sortTable($("agTable"));
   $$("#agTable [data-ag]").forEach(tr => tr.onclick = (e) => {
     if (e.target.closest("a")) return;
     agEdit(agState.list.find(x => x.id === Number(tr.dataset.ag)));

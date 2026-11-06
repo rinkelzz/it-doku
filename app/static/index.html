@@ -75,7 +75,7 @@
           <div class="row"><input id="devQ" type="search" placeholder="Filtern …" style="width:200px" maxlength="100">
             <button id="devCsv">CSV</button><button class="admin hidden" id="devImport">Import</button><button class="primary admin hidden" id="devNew">＋ Gerät</button></div></div>
         <div class="err" id="devErr"></div>
-        <div class="scroll desktopOnly"><table class="list" id="devTable"></table></div>
+        <div class="scroll desktopOnly"><table class="list sortable" id="devTable"></table></div>
         <div class="mobileOnly"><div class="mcards" id="devCards"></div></div>
       </section>
     </div>
@@ -96,7 +96,7 @@
         <div class="toolbar"><h2 id="ipTitle">IP-Adressen</h2>
           <div class="row"><label class="inline small"><input type="checkbox" id="ipFree"> freie anzeigen</label>
             <input type="search" id="ipQ" placeholder="Filtern …" style="width:160px"><button class="primary admin hidden" id="ipNew">＋ IP</button></div></div>
-        <div class="scroll"><table class="list" id="ipTable"></table></div>
+        <div class="scroll"><table class="list sortable" id="ipTable"></table></div>
         <div class="err" id="ipErr"></div>
       </section>
       <aside class="panel">
@@ -119,7 +119,7 @@
       <div class="toolbar"><h2>Lizenzen</h2>
         <div class="row"><div class="seg" id="licSeg"></div>
           <input type="search" id="licQ" placeholder="Filtern …" style="width:180px" maxlength="100"><button class="primary admin hidden" id="licNew">＋ Lizenz</button></div></div>
-      <div class="scroll"><table class="list" id="licTable"></table></div>
+      <div class="scroll"><table class="list sortable" id="licTable"></table></div>
       <p class="muted small" style="margin:10px 0 0">„Genutzt“ zählt die zugeordneten Geräte – oder du trägst die Zahl von Hand ein (z. B. bei Benutzerlizenzen).
         Domains, Zertifikate und Wartungsverträge gehören auch hierher: alles mit Ablaufdatum an einer Stelle.</p>
       <div class="err" id="licErr"></div>
@@ -264,7 +264,7 @@
     <div class="asec agwrap" data-asec="agenten">
       <section class="card">
         <div class="toolbar"><h2>🛰️ Agenten</h2><button class="primary mini" id="agNew">＋ Agent</button></div>
-        <div class="scroll"><table id="agTable"></table></div>
+        <div class="scroll"><table class="sortable" id="agTable"></table></div>
         <p class="muted small">Ein Agent läuft auf einem Server oder PC (Windows, Linux, macOS), meldet sich <b>täglich und nach jedem Start</b>
           und schickt Hardware, System, Datenträger, Netzwerk, installierte Software, Updates und Dienste. Das Gerät wird über Seriennummer
           oder Rechnername gefunden – oder automatisch angelegt. Am Server muss kein Port offen sein.</p>

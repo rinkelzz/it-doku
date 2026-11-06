@@ -1,5 +1,6 @@
 """Gemeinsame Hilfen für die Dokumentation: Prüfen, Änderungen beschreiben, protokollieren, Fristen."""
 import ipaddress
+import re
 import sqlite3
 from datetime import date, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -135,6 +136,17 @@ def attachments(conn: sqlite3.Connection, kind: str, item_id: int, role: str = "
 
 
 # --- IP-Adressen -------------------------------------------------------------
+
+def is_placeholder_name(name: str) -> bool:
+    """Gerätename ist nur eine IP- oder MAC-Adresse (z. B. vom Netzwerk-Scan ohne Hostnamen angelegt)."""
+    text = (name or "").strip()
+    try:
+        ipaddress.ip_address(text)
+        return True
+    except ValueError:
+        pass
+    return bool(re.fullmatch(r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}", text))
+
 
 def parse_ip(value: str) -> str:
     try:

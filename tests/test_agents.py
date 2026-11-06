@@ -217,3 +217,23 @@ def test_sanitize_limits():
     assert rep["network"]["interfaces"] == [{"name": "eth0", "mac": "", "ipv4": ["10.0.0.1"], "ipv6": []}]
     assert rep["services"][0]["state"] == "other" and rep["services"][0]["start"] == ""
     assert rep["updates"]["pending"] == 7 and rep["platform"] == ""
+
+
+def test_placeholder_names_get_hostname(admin):
+    from app.doku import is_placeholder_name
+    assert is_placeholder_name("192.168.90.4") and is_placeholder_name("DC:A6:32:DC:81:CB") and is_placeholder_name("2a01::1")
+    assert not is_placeholder_name("raspberrypi") and not is_placeholder_name("NAS 192.168.1.5")
+    types = {t["name"]: t["id"] for t in admin.get("/api/v1/device-types").json()}
+    net = admin.post("/api/v1/networks", json={"name": "LAN", "cidr": "192.168.10.0/24"}).json()
+    d = admin.post("/api/v1/devices", json={"name": "192.168.10.5", "type_id": types["Sonstiges"]}).json()
+    ip = admin.post("/api/v1/ips", json={"ip": "192.168.10.5", "network_id": net["id"], "device_id": d["id"]}).json()
+    # Netzwerk-Scan: Hostname übernehmen benennt das Gerät mit
+    assert admin.post("/api/v1/scan/fill", json={"items": [{"ip_id": ip["id"], "hostname": "printer.local"}]}).json()["updated"] == 1
+    assert admin.get(f"/api/v1/devices/{d['id']}").json()["name"] == "printer"
+    # Agent: Gerät, das nur „IP“ heißt, bekommt den Rechnernamen; echte Namen bleiben
+    d2 = admin.post("/api/v1/devices", json={"name": "10.0.0.7", "type_id": types["PC"], "serial": "8XK2L93"}).json()
+    send(admin.post("/api/v1/agents", json={"name": "a"}).json()["token"])
+    assert admin.get(f"/api/v1/devices/{d2['id']}").json()["name"] == "PRAXIS-DC"
+    admin.patch(f"/api/v1/devices/{d2['id']}", json={"name": "Server Praxis"})
+    send(admin.get("/api/v1/agents").json() and admin.post(f"/api/v1/agents/{admin.get('/api/v1/agents').json()['agents'][0]['id']}/token").json()["token"])
+    assert admin.get(f"/api/v1/devices/{d2['id']}").json()["name"] == "Server Praxis"

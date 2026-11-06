@@ -544,3 +544,51 @@ fetch(url("api/v1/health")).then(r => r.json()).then(h => { $("version").textCon
 
 loadBranding();
 start().catch(showLogin);
+
+// ---------- Tabellen sortieren (Klick auf den Spaltenkopf; zweiter Klick absteigend, dritter wie geliefert) ----------
+const SORTS = (() => { try { return JSON.parse(localStorage.getItem("itd_sort") || "{}"); } catch (e) { return {}; } })();
+const sortColl = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
+function sortKey(row, col) {
+  if (row.classList.contains("free") && col !== 0) return null;
+  const td = row.cells[col];
+  if (!td || td.colSpan > 1) return null;
+  const v = (td.dataset.sort != null ? td.dataset.sort : td.textContent).trim();
+  if (!v || v === "–" || v === "-") return null;
+  const ip = v.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?!\d)/);
+  if (ip) return ip.slice(1).reduce((a, x) => a * 256 + Number(x), 0);
+  if (/^-?\d+(?:[.,]\d+)?$/.test(v)) return Number(v.replace(",", "."));
+  return v;
+}
+function sortTable(table) {
+  if (!table || !table.tHead || !table.tBodies[0]) return;
+  const st = SORTS[table.id];
+  [...table.tHead.rows[0].cells].forEach((th, i) => {
+    if (th.querySelector("input")) return;
+    th.classList.add("sorth");
+    th.classList.toggle("asc", !!st && st.col === i && st.dir === 1);
+    th.classList.toggle("desc", !!st && st.col === i && st.dir === -1);
+    th.title = "Sortieren";
+  });
+  const tb = table.tBodies[0];
+  const rows = [...tb.rows];
+  rows.forEach((r, i) => { if (r.dataset.o == null) r.dataset.o = i; });
+  if (rows.some(r => r.querySelector(".emptyrow"))) return;
+  rows.sort((a, b) => {
+    if (!st) return a.dataset.o - b.dataset.o;
+    const ka = sortKey(a, st.col), kb = sortKey(b, st.col);
+    if (ka == null || kb == null) return ka == null && kb == null ? a.dataset.o - b.dataset.o : ka == null ? 1 : -1;
+    const c = typeof ka === "number" && typeof kb === "number" ? ka - kb : sortColl.compare(String(ka), String(kb));
+    return (c || a.dataset.o - b.dataset.o) * (c ? st.dir : 1);
+  });
+  rows.forEach(r => tb.appendChild(r));
+}
+document.addEventListener("click", (e) => {
+  const th = e.target.closest("table.sortable thead th");
+  if (!th || th.querySelector("input")) return;
+  const table = th.closest("table"), col = th.cellIndex, st = SORTS[table.id];
+  if (!st || st.col !== col) SORTS[table.id] = { col, dir: 1 };
+  else if (st.dir === 1) SORTS[table.id] = { col, dir: -1 };
+  else delete SORTS[table.id];
+  try { localStorage.setItem("itd_sort", JSON.stringify(SORTS)); } catch (err) { /* egal */ }
+  sortTable(table);
+});

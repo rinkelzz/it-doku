@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from .db import get_setting
-from .doku import insert_row, log, network_for
+from .doku import insert_row, is_placeholder_name, log, network_for
 from .timeutil import now_utc, now_utc_str, parse_utc, to_utc_str
 
 TOKEN_PREFIX = "itd_"
@@ -334,6 +334,9 @@ def update_device(conn: sqlite3.Connection, device_id: int, agent: sqlite3.Row, 
     hw = rep["hardware"]
     changes: Dict[str, Tuple[str, str]] = {}
     label = os_label(rep)
+    host = rep["hostname"].split(".")[0][:100]
+    if host and is_placeholder_name(d["name"]):
+        changes["name"] = (d["name"], host)
     if label and d["os"] != label:
         changes["os"] = (d["os"], label)
     for col, val in (("manufacturer", hw["manufacturer"]), ("model", hw["model"]),
@@ -344,9 +347,9 @@ def update_device(conn: sqlite3.Connection, device_id: int, agent: sqlite3.Row, 
         sets = ", ".join(f"{k} = ?" for k in changes)
         conn.execute(f"UPDATE devices SET {sets}, updated_at = ? WHERE id = ?",
                      [v[1] for v in changes.values()] + [now_utc_str(), device_id])
-        labels = {"os": "Betriebssystem", "manufacturer": "Hersteller", "model": "Modell", "serial": "Seriennummer"}
+        labels = {"name": "Name", "os": "Betriebssystem", "manufacturer": "Hersteller", "model": "Modell", "serial": "Seriennummer"}
         text = "; ".join(f"{labels[k]}: {o or '–'} → {n}" for k, (o, n) in changes.items())
-        log(conn, None, "doc_updated", "device", device_id, d["name"], f"{text} (Agent)")
+        log(conn, None, "doc_updated", "device", device_id, changes.get("name", ("", d["name"]))[1], f"{text} (Agent)")
     _sync_ips(conn, d, rep)
 
 
