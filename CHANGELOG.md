@@ -2,6 +2,26 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.6.0] – 2026-11-06
+
+### Neu
+- **Agent für Server und PCs** – Windows (PowerShell 5.1, ohne Zusatzmodule), Linux und macOS (Python 3, nur
+  Standardbibliothek). Meldet sich täglich und nach jedem Start per HTTPS mit eigenem Schlüssel pro Agent; am Server
+  muss kein Port offen sein. Erreichbar über Reverse Proxy (https) oder intern per VPN.
+- Gemeldet werden Rechnername, Betriebssystem mit Build, CPU, Arbeitsspeicher, Hersteller/Modell/Seriennummer, Laufzeit,
+  Datenträger mit freiem Platz, Netzwerkkarten, Gateway und DNS, installierte Software, ausstehende Updates samt
+  „Neustart nötig“ und Dienste.
+- **Am Gerät:** Abschnitt „🛰️ Vom Agent gemeldet“ mit Datenträger-Balken, auffälligen Diensten (Autostart, aber
+  gestoppt), durchsuchbarer Software-Liste und CSV-Export; Karte „Agent“ mit letztem Bericht.
+- **Gerät finden oder anlegen:** über Seriennummer, dann Rechnername; sonst neu mit passendem Typ und Standort.
+  Betriebssystem wird nachgezogen, leere Felder ergänzt, Handarbeit bleibt. IPv4-Adressen aus dokumentierten Netzen
+  kommen in die IP-Liste.
+- **Verwaltung → 🛰️ Agenten:** Agenten anlegen (Schlüssel wird nur einmal angezeigt), Einrichtungsbefehl für Windows,
+  Linux und macOS zum Kopieren, neuer Schlüssel, sperren, löschen; Adresse für Agenten und „still nach“ einstellbar.
+- **Stille Agenten** (Standard: 3 Tage ohne Bericht) auf der Übersicht, am Gerät und in der Fristen-Mail – die
+  Sammel-Mail kommt dann auch, wenn keine Frist ansteht.
+- CI testet die Agenten echt auf Windows, macOS und Linux (Bericht senden und Einrichten des Zeitplans).
+
 ## [0.5.0] – 2026-11-06
 
 ### Neu

@@ -53,6 +53,7 @@
       <div class="stats" style="margin-top:0" id="homeStats"></div>
     </section>
     <div class="httpwarn hidden" id="homeScan" style="margin:0;display:flex;gap:12px;align-items:center;justify-content:space-between"></div>
+    <div class="httpwarn hidden" id="homeAgents" style="margin:0;display:flex;gap:12px;align-items:center;justify-content:space-between"></div>
     <div class="g2">
       <section class="card"><h2>Bald fällig <span class="muted small" style="font-weight:400">– nächste 90 Tage</span></h2><div id="homeDue"></div></section>
       <section class="card"><h2>Im Notfall anrufen</h2><div id="homeSos"></div></section>
@@ -162,6 +163,7 @@
       <button data-asec="stammdaten">🏷️ Stammdaten</button>
       <button data-asec="tresor">🔐 Tresor</button>
       <button data-asec="einstellungen">⚙️ Einstellungen</button>
+      <button data-asec="agenten">🛰️ Agenten</button>
       <button data-asec="mail">✉️ Mail</button>
       <button data-asec="system" title="Port, Datensicherung, Updates">💾 System</button>
       <button data-asec="protokoll">📜 Protokoll</button>
@@ -258,6 +260,31 @@
         <div class="err" id="setErr"></div>
       </div>
     </section>
+
+    <div class="asec agwrap" data-asec="agenten">
+      <section class="card">
+        <div class="toolbar"><h2>🛰️ Agenten</h2><button class="primary mini" id="agNew">＋ Agent</button></div>
+        <div class="scroll"><table id="agTable"></table></div>
+        <p class="muted small">Ein Agent läuft auf einem Server oder PC (Windows, Linux, macOS), meldet sich <b>täglich und nach jedem Start</b>
+          und schickt Hardware, System, Datenträger, Netzwerk, installierte Software, Updates und Dienste. Das Gerät wird über Seriennummer
+          oder Rechnername gefunden – oder automatisch angelegt. Am Server muss kein Port offen sein.</p>
+        <div class="err" id="agErr"></div>
+      </section>
+      <section class="card">
+        <h2>Einstellungen</h2>
+        <label>Adresse für Agenten <input id="agUrl" placeholder="https://doku.kunde.de"></label>
+        <p class="muted small" style="margin-top:4px">So erreichen die Agenten die IT-Dokumentation:<br>
+          <b>Von außen</b>: DSM → Systemsteuerung → Anmeldeportal → Erweitert → Reverse Proxy, Quelle <span class="mono">https://doku.kunde.de</span>
+          (Port 443, Zertifikat von Let's Encrypt), Ziel <span class="mono">http://localhost:<span id="agPort">8780</span></span>.<br>
+          <b>Per VPN</b>: die interne Adresse, z. B. <span class="mono">http://192.168.10.5:<span id="agPort2">8780</span></span> – unverschlüsselt nur im VPN/LAN sinnvoll
+          (der Agent fragt dafür eine Bestätigung ab).</p>
+        <label>Als „still“ melden nach <select id="agStale"><option value="1">1 Tag</option><option value="2">2 Tagen</option>
+          <option value="3">3 Tagen</option><option value="7">7 Tagen</option><option value="14">14 Tagen</option></select></label>
+        <p class="muted small">Stille Agenten erscheinen auf der Übersicht und in der wöchentlichen Fristen-Mail.</p>
+        <div class="row"><button class="primary" id="agSave">Speichern</button></div>
+        <div class="err" id="agSetErr"></div>
+      </section>
+    </div>
 
     <section class="card asec" data-asec="mail">
       <div class="toolbar"><h2>Fristen-Mail</h2><span class="small muted" id="dlLast"></span></div>
@@ -423,5 +450,6 @@
 <script src="static/app.js?v={{v}}"></script>
 <script src="static/doku.js?v={{v}}"></script>
 <script src="static/vault.js?v={{v}}"></script>
+<script src="static/agents.js?v={{v}}"></script>
 </body>
 </html>

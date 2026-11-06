@@ -160,7 +160,7 @@ def mail_test(data: MailTestIn, admin=Depends(admin_user), conn: sqlite3.Connect
 # --- Änderungsprotokoll -------------------------------------------------------
 
 AUDIT_CATEGORIES = {"doku": "Dokumentation", "tresor": "Tresor", "anmeldung": "Anmeldung", "benutzer": "Benutzer", "einstellungen": "Einstellungen",
-                    "sicherung": "Datensicherung"}
+                    "agenten": "Agenten", "sicherung": "Datensicherung"}
 AUDIT_ACTIONS = {
     "doc_created": ("doku", "Angelegt"),
     "doc_updated": ("doku", "Geändert"),
@@ -171,6 +171,10 @@ AUDIT_ACTIONS = {
     "scan_run": ("doku", "Netzwerk-Scan"),
     "devices_imported": ("doku", "Geräte importiert (CSV)"),
     "deadline_mail": ("einstellungen", "Fristen-Mail verschickt"),
+    "agent_created": ("agenten", "Agent angelegt"),
+    "agent_token": ("agenten", "Agent-Schlüssel erneuert"),
+    "agent_updated": ("agenten", "Agent geändert"),
+    "agent_deleted": ("agenten", "Agent gelöscht"),
     "secret_shown": ("tresor", "Geheimnis angezeigt"),
     "secret_copied": ("tresor", "Geheimnis kopiert"),
     "vault_setup": ("tresor", "Tresor eingerichtet"),

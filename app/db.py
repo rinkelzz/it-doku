@@ -310,12 +310,38 @@ CREATE TABLE IF NOT EXISTS scan_ignore (
 """)
 
 
+def _m6_agenten(conn: sqlite3.Connection) -> None:
+    """Version 0.6: Agenten auf Servern/PCs melden Hardware, System, Netzwerk, Software, Updates und Dienste."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS agents (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    platform        TEXT NOT NULL DEFAULT '',      -- windows | linux | macos (wie zuletzt gemeldet)
+    device_id       INTEGER REFERENCES devices(id) ON DELETE SET NULL,
+    token_hash      TEXT NOT NULL UNIQUE,          -- SHA-256 des Schlüssels; der Schlüssel selbst wird nie gespeichert
+    token_hint      TEXT NOT NULL DEFAULT '',      -- letzte Zeichen zum Wiedererkennen
+    disabled        INTEGER NOT NULL DEFAULT 0,
+    created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT,
+    last_report_at  TEXT,
+    last_ip         TEXT NOT NULL DEFAULT '',
+    agent_version   TEXT NOT NULL DEFAULT '',
+    hostname        TEXT NOT NULL DEFAULT '',
+    os_name         TEXT NOT NULL DEFAULT '',
+    report          TEXT                           -- letzter Bericht (JSON, bereinigt)
+);
+CREATE INDEX IF NOT EXISTS idx_agents_device ON agents(device_id);
+""")
+
+
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_stammdaten,
     3: _m3_tresor,
     4: _m4_fristen,
     5: _m5_scan,
+    6: _m6_agenten,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
@@ -359,6 +385,9 @@ DEFAULT_SETTINGS = {
     "scan_hour": "3",
     "scan_last_day": "",
     "scan_stale_days": "30",
+    # Agenten: Adresse, unter der Agenten die App erreichen (Reverse Proxy mit https oder intern per VPN)
+    "agent_url": "",
+    "agent_stale_days": "3",
 }
 
 

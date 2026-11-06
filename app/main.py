@@ -13,7 +13,7 @@ from .db import connect, init_db
 from .dsm import write_ui_config
 from .dsm_auth import proxy_info, publish_proxy_files
 from . import scheduler
-from .routers import (auth, backup, branding, contacts, credentials, devices, files, licenses, network, overview, scan,
+from .routers import (agents as agents_router, auth, backup, branding, contacts, credentials, devices, files, licenses, network, overview, scan,
                       settings as settings_router, updates, users, vault as vault_router)
 
 
@@ -70,7 +70,7 @@ app.add_middleware(_RememberPeer)  # zuletzt hinzugefügt = läuft zuerst
 
 for r in (auth.router, backup.router, branding.router, settings_router.router, updates.router, users.router,
           overview.router, network.router, devices.router, licenses.router, contacts.router, files.router, credentials.router,
-          vault_router.router, scan.router):
+          vault_router.router, scan.router, agents_router.router):
     app.include_router(r)
 
 

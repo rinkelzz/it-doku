@@ -43,6 +43,15 @@ def _scan_new(conn) -> int:
         return 0
 
 
+def _agents_stale(conn) -> list:
+    from .. import agents
+    try:
+        return [{"id": a["id"], "name": a["name"], "device_id": a["device_id"], "device_name": a["device_name"],
+                 "last_report_at": a["last_report_at"]} for a in agents.stale_agents(conn)]
+    except Exception:  # noqa: BLE001
+        return []
+
+
 @router.get("/overview")
 def overview(site_id: Optional[int] = None, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
     def one(sql, args=()):
@@ -66,6 +75,7 @@ def overview(site_id: Optional[int] = None, user=Depends(current_user), conn: sq
         "sites": list_sites(user=user, conn=conn),
         "recent": recent_changes(conn, with_credentials=bool(user["is_admin"])),
         "scan_new": _scan_new(conn) if user["is_admin"] else 0,
+        "agents_stale": _agents_stale(conn) if user["is_admin"] else [],
     }
 
 

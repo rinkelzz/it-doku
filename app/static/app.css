@@ -786,3 +786,18 @@ html.dark .warnbox { background: #422006; color: #fde68a; border-color: #b45309;
 .grp h3:first-child { margin-top: 0 !important; }
 .ports { font-size: 12px; color: var(--muted); }
 #scanView td a { color: var(--text); }
+
+/* 0.6 Agenten */
+.cmd { font: 12.5px/1.55 ui-monospace, Menlo, Consolas, monospace; background: #0f172a; color: #e2e8f0; border-radius: 8px;
+  padding: 10px 12px; white-space: pre-wrap; word-break: break-all; user-select: all; }
+.disk { display: grid; grid-template-columns: minmax(60px, 120px) 1fr 150px; gap: 10px; align-items: center; font-size: 13px; margin: 5px 0; }
+.disk .prog { min-width: 0; }
+.disk b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prog.warn i { background: var(--warn); }
+.prog.bad i { background: var(--bad); }
+.sv { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.sv small.mono { font-size: 11px; }
+@media (max-width: 600px) { .disk { grid-template-columns: 70px 1fr; } .disk span { grid-column: 1 / -1; } }
+.agwrap { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 360px; align-items: start; }
+@media (max-width: 1100px) { .agwrap { grid-template-columns: 1fr; } }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--bg); }

@@ -141,7 +141,7 @@ async function showTab(name, sub) {
 }
 
 // ---------- Verwaltung ----------
-const ADMIN_SECS = ["benutzer", "stammdaten", "tresor", "einstellungen", "mail", "system", "protokoll"];
+const ADMIN_SECS = ["benutzer", "stammdaten", "tresor", "einstellungen", "agenten", "mail", "system", "protokoll"];
 function showAdminSec(key) {
   if (!ADMIN_SECS.includes(key)) key = "einstellungen";
   $$("#adminNav [data-asec]").forEach(b => b.classList.toggle("active", b.dataset.asec === key));
@@ -162,6 +162,7 @@ async function loadAdmin() {
   if (window.loadStammdaten) jobs.push(loadStammdaten().catch(e => { $("siteErr").textContent = e.message; }));
   if (window.loadVaultAdmin) jobs.push(loadVaultAdmin().catch(e => { $("vaErr").textContent = e.message; }));
   if (window.loadDeadlines) jobs.push(loadDeadlines().catch(e => { $("dlErr").textContent = e.message; }));
+  if (window.loadAgents) jobs.push(loadAgents().catch(e => { $("agErr").textContent = e.message; }));
   await Promise.all(jobs);
 }
 

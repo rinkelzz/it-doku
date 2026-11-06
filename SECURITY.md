@@ -41,6 +41,21 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
   keine Exploits, kein Root. Bitte nur Netze scannen, für die du beauftragt bist; manche Sicherheitssysteme melden Scans.
 - Starten, Ergebnisse sehen und übernehmen nur mit Vollzugriff.
 
+## Agenten
+
+- Jeder Agent hat einen eigenen Schlüssel (`itd_` + 256 Bit Zufall). Gespeichert wird nur dessen SHA-256; angezeigt wird
+  er genau einmal beim Anlegen bzw. Erneuern. Ein neuer Schlüssel macht den alten sofort ungültig, gesperrte Agenten
+  werden abgelehnt.
+- Ein Agent kann **nur Berichte abliefern** – nichts lesen, nichts ändern außer „seinem“ Gerät (Betriebssystem, leere
+  Felder, IP-Adressen aus dokumentierten Netzen). Kein Befehl läuft vom Server zum Agenten zurück.
+- Berichte sind auf 4 MB begrenzt und werden vor dem Speichern auf bekannte Felder und Längen beschnitten. Nach 20
+  ungültigen Schlüsseln von einer Adresse ist 15 Minuten Pause.
+- Auf dem Rechner liegt der Schlüssel in `/etc/itdoku-agent.conf` (nur root) bzw. `C:\ProgramData\ITDoku` (nur SYSTEM
+  und Administratoren). Der Agent läuft als root/SYSTEM, weil Seriennummer, Updates und Dienste sonst nicht lesbar sind.
+- Unverschlüsseltes `http://` muss beim Einrichten ausdrücklich bestätigt werden – nur im VPN/LAN verwenden.
+  Zertifikatsprüfung abschalten (`--insecure`) nur bei selbstsignierten Zertifikaten im eigenen Netz.
+- Die Skripte unter `/agent/…` enthalten keine Geheimnisse und sind ohne Anmeldung abrufbar.
+
 ## Tresor
 
 - Zugangsdaten (Passwort, Notiz, 2FA-Geheimnis) und Lizenzschlüssel werden mit einem zufälligen 256-Bit-Datenschlüssel

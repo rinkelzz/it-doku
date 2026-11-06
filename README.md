@@ -11,8 +11,9 @@ Lizenzen, Netzwerkplan und Zugangsdaten (verschlüsselt im Tresor). Sie läuft a
 eigenem Fenster in DSM. Die Daten bleiben beim Kunden; der IT-Dienstleister und eine Vertrauensperson beim Kunden
 haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 
-> **Stand 0.5:** Geräte, Netzwerk mit Netzwerk-Scan, Lizenzen, Ansprechpartner, Zugangsdaten im verschlüsselten Tresor,
-> Fristen-Mail, Notfall-Handbuch als PDF und CSV-Import – siehe [Fahrplan](#fahrplan).
+> **Stand 0.6:** Geräte, Netzwerk mit Netzwerk-Scan, Agent für Server und PCs (Windows, Linux, macOS), Lizenzen,
+> Ansprechpartner, Zugangsdaten im verschlüsselten Tresor, Fristen-Mail, Notfall-Handbuch als PDF und CSV-Import –
+> siehe [Fahrplan](#fahrplan).
 
 ![Übersicht](docs/screenshots/uebersicht.png)
 
@@ -21,6 +22,7 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 - [Funktionen](#funktionen)
 - [Rechte](#rechte)
 - [Tresor für Zugangsdaten](#tresor-für-zugangsdaten)
+- [Agent für Server und PCs](#agent-für-server-und-pcs)
 - [Fahrplan](#fahrplan)
 - [Installation auf der Synology](#installation-auf-der-synology)
 - [Updates über das Paket-Zentrum](#updates-über-das-paket-zentrum)
@@ -52,6 +54,8 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 - **Netzwerk-Scan** (von Hand oder nachts): findet unbekannte Geräte und legt sie mit einem Klick an, ergänzt MAC und
   Hostname, meldet abweichende MAC-Adressen und Geräte, die länger nicht erreichbar waren. Läuft ohne Root-Rechte und ohne
   Zusatzprogramme, nur in Netzen mit Haken „scannen“ (IPv4, höchstens /22).
+- **Agent für Server und PCs** (Windows, Linux, macOS): meldet täglich Hardware, System, Datenträger, Netzwerk,
+  installierte Software, Updates und Dienste – siehe [unten](#agent-für-server-und-pcs).
 - **CSV-Import für Geräte:** beliebige Inventarliste hochladen, Spalten zuordnen, Vorschau prüfen, importieren.
   Dubletten (gleiche Seriennummer) werden übersprungen.
 
@@ -62,6 +66,8 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 | ![Geräte](docs/screenshots/geraete.png) | ![Lizenzen](docs/screenshots/lizenzen.png) | ![Kontakte](docs/screenshots/kontakte.png) |
 | **CSV-Import** | **Fristen-Mail** | **Netzwerk-Scan** |
 | ![CSV-Import](docs/screenshots/import.png) | ![Fristen-Mail](docs/screenshots/fristen-mail.png) | ![Netzwerk-Scan](docs/screenshots/netzwerk-scan.png) |
+| **Vom Agent gemeldet** | **Agenten** | **Agent einrichten** |
+| ![Vom Agent gemeldet](docs/screenshots/agent-geraet.png) | ![Agenten](docs/screenshots/agenten.png) | ![Agent einrichten](docs/screenshots/agent-einrichten.png) |
 | **Suche** | **Stammdaten** | **Handy** |
 | ![Suche](docs/screenshots/suche.png) | ![Stammdaten](docs/screenshots/stammdaten.png) | ![Handy](docs/screenshots/handy.png) |
 
@@ -121,6 +127,44 @@ IT-Dokumentation ein Benutzer mit gleichem Namen angelegt ist. Beides lässt sic
 - **Sicherungen** enthalten den Tresor nur verschlüsselt. Nach einem Wiederherstellen (auch auf einer neuen NAS)
   öffnen die bisherigen Tresor-Passwörter und der Notfall-Schlüssel ihn wie gewohnt.
 
+## Agent für Server und PCs
+
+Für Rechner, die der Netzwerk-Scan nicht sieht (Cloud-Server, Filiale, Homeoffice) oder bei denen mehr als die IP
+interessiert: Ein kleiner Agent schickt **täglich und nach jedem Start** einen Bericht per HTTPS an die
+IT-Dokumentation. Am Server muss **kein Port offen** sein – der Agent meldet sich, nicht umgekehrt.
+
+**Was gemeldet wird:** Rechnername, Betriebssystem mit Build, CPU, Arbeitsspeicher, Hersteller/Modell/Seriennummer,
+Laufzeit seit dem letzten Start, Datenträger mit freiem Platz, Netzwerkkarten mit IP/MAC, Gateway und DNS,
+installierte Software (durchsuchbar, als CSV), ausstehende Updates und ob ein Neustart nötig ist, Dienste (gestoppte
+Dienste mit Autostart werden hervorgehoben). Keine Dateien, keine Passwörter, keine Benutzerdaten.
+
+**Gerät finden:** Beim ersten Bericht sucht die App das Gerät über die Seriennummer, dann über den Rechnernamen – sonst
+legt sie es neu an (Typ PC, Laptop oder Server, Standort über das passende Netz). Danach zieht sie das Betriebssystem
+nach und ergänzt leere Felder (Hersteller, Modell, Seriennummer); von Hand Gepflegtes bleibt. IPv4-Adressen aus
+dokumentierten Netzen landen in der IP-Liste.
+
+**Einrichten:** Verwaltung → 🛰️ Agenten → **＋ Agent**. Die App zeigt einen Schlüssel (nur einmal) und den passenden
+Befehl zum Einfügen:
+
+| System | Voraussetzung | Zeitplan |
+|---|---|---|
+| Windows 10/11, Server 2016+ | Windows PowerShell 5.1 (eingebaut), als Administrator | geplante Aufgabe „ITDoku Agent“ als SYSTEM |
+| Linux | Python 3.6+ (Standardbibliothek), sudo | systemd-Timer, sonst Cron |
+| macOS | Python 3 (Command Line Tools), sudo | LaunchDaemon |
+
+Entfernen: `sudo itdoku-agent --uninstall` bzw.
+`powershell -ExecutionPolicy Bypass -File C:\ProgramData\ITDoku\itdoku-agent.ps1 -Uninstall`.
+Ansehen, was gesendet würde, ohne zu senden: `--print` bzw. `-Print`.
+
+**Erreichbarkeit** (Adresse unter Verwaltung → Agenten eintragen):
+- **Von außen:** Reverse Proxy mit https wie unten beschrieben – die Agenten nutzen nur `/api/agent/v1/report` und
+  zum Herunterladen `/agent/…`.
+- **Per VPN/LAN:** die interne Adresse, z. B. `http://192.168.10.5:8780`. Unverschlüsselt muss im Befehl ausdrücklich
+  bestätigt werden (`--allow-http` / `-AllowHttp`).
+
+Meldet sich ein Agent länger nicht (Standard: 3 Tage), erscheint ein Hinweis auf der **Übersicht**, am Gerät und in der
+wöchentlichen **Fristen-Mail**.
+
 ## Fahrplan
 
 | Version | Inhalt |
@@ -130,7 +174,7 @@ IT-Dokumentation ein Benutzer mit gleichem Namen angelegt ist. Beides lässt sic
 | **0.3** ✔ | Tresor: Zugangsdaten mit Tresor-Passwort pro Benutzer, Einladungscode, Notfall-Schlüssel als PDF, Auto-Sperre, Anzeigen/Kopieren mit Protokoll, Passwort-Generator, 2FA-Codes (TOTP), verschlüsselte Lizenzschlüssel |
 | **0.4** ✔ | Komfort: Fristen-Mail (wöchentlich + Stichtage), PDF „Notfall-Handbuch“ (Kontakte, Internet, Netzwerk), CSV-Import für Geräte mit Spaltenzuordnung |
 | **0.5** ✔ | Netzwerk-Scan: neue Geräte übernehmen, MAC/Hostname ergänzen, Abweichungen, „zuletzt online“, nachts automatisch |
-| 0.6 | Agent für entfernte Server (Windows, Linux, macOS): meldet Hardware, System, Netzwerk, Software, Updates und Dienste per HTTPS |
+| **0.6** ✔ | Agent für Server und PCs (Windows, Linux, macOS): Hardware, System, Datenträger, Netzwerk, Software, Updates und Dienste per HTTPS, Gerät wird gefunden oder angelegt, Hinweis bei stillen Agenten |
 | später | Wiki-Seiten für Anleitungen, Verknüpfung mit dem Helpdesk aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) |
 
 ## Installation auf der Synology
@@ -244,7 +288,10 @@ customer's own NAS, in its own DSM window with single sign-on. The user interfac
   networks, IP lists, diagram – no passwords), CSV import for devices with column mapping and preview.
 - 0.5: network scan without root (TCP probes, ARP, DNS/NetBIOS): adopt new devices, fill in MAC/hostname, MAC mismatches,
   “last seen”, nightly scans.
-- Planned: agent for remote servers (Windows, Linux, macOS), wiki pages, link to the Zeitmanagement helpdesk.
+- 0.6: agent for servers and PCs (Windows PowerShell, Linux and macOS via Python standard library): daily HTTPS report
+  of hardware, OS, disks, network, installed software, pending updates and services, per-agent key; devices are matched
+  by serial number or host name or created; silent agents are flagged on the overview and in the weekly mail.
+- Planned: wiki pages, link to the Zeitmanagement helpdesk.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/it-doku/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.

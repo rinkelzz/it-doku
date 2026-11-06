@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 from .config import settings
 
 UNSAFE = frozenset({"POST", "PUT", "PATCH", "DELETE"})
-OWN_AUTH_HEADERS = ("x-session-token", "x-itd-proxy-secret")
+OWN_AUTH_HEADERS = ("x-session-token", "x-itd-proxy-secret", "authorization")
 
 
 def _netloc(url: Optional[str]) -> str:

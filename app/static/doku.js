@@ -196,6 +196,7 @@ async function loadHomeDoc() {
     ["contacts", "Ansprechpartner", o.contacts, `${o.contacts_external} externe Dienstleister`],
   ].map(([t, l, n, s]) => `<div class="stat link" data-go="${t}"><small>${l}</small><b>${n}</b><small>${s}</small></div>`).join("");
   $$("#homeStats [data-go]").forEach(el => el.onclick = () => go(el.dataset.go));
+  if (window.agentHome) agentHome(o.agents_stale || []);
   $("homeScan").classList.toggle("hidden", !o.scan_new);
   if (o.scan_new) {
     $("homeScan").innerHTML = `<span>🔍 Der Netzwerk-Scan hat <b>${o.scan_new} unbekannte${o.scan_new === 1 ? "s Gerät" : " Geräte"}</b> gefunden.</span><button class="primary">Ansehen</button>`;
@@ -348,9 +349,11 @@ async function showDevice(id) {
       ${d.notes ? `<div class="note">${esc(d.notes)}</div>` : '<p class="muted small" style="margin:0">–</p>'}
       <div class="sect">Anhänge ${uploadButton("devFile")}</div>
       <div id="devFiles">${filesHtml(d.files)}</div><div class="err" id="devFileErr"></div>
+      <div id="devAgent"></div>
     </section>
     <aside class="panel">
       ${adm ? '<div class="card" id="devCreds"></div>' : ""}
+      <div class="card hidden" id="devAgentSide"></div>
       <div class="card"><h3>Lizenzen</h3>
         ${d.licenses.map(l => `<div class="due"><span class="ti">🔑</span><div><a href="#licenses/${l.id}" style="color:var(--text);text-decoration:none">${esc(l.name)}</a>
           <small>${esc([l.term || l.kind_label, l.seats != null ? `${l.used} von ${l.seats}` : ""].filter(Boolean).join(" · "))}</small></div>
@@ -367,6 +370,7 @@ async function showDevice(id) {
   </div>`;
   const reload = () => showDevice(id);
   box.querySelector("[data-back]").onclick = () => go("devices");
+  if (window.agentPanel) agentPanel(d, reload);
   if (!adm) { bindFiles(box, reload); return; }
   if (window.credPanel) credPanel($("devCreds"), "device", d.id);
   box.querySelector("[data-edit]").onclick = () => deviceForm(d);

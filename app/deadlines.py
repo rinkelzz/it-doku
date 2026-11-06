@@ -66,8 +66,12 @@ def compose_digest(conn: sqlite3.Connection, items: List[Dict], days: int) -> Tu
     expired = [i for i in items if i["days"] < 0]
     soon = [i for i in items if i["days"] >= 0]
     n = len(items)
-    subject = f"IT-Dokumentation{_company(conn)}: {n} Frist{'' if n == 1 else 'en'}" + (f", {len(expired)} abgelaufen" if expired else "")
-    body = f"Hallo,\n\ndiese Fristen stehen in der IT-Dokumentation{_company(conn)} an:\n"
+    if n:
+        subject = f"IT-Dokumentation{_company(conn)}: {n} Frist{'' if n == 1 else 'en'}" + (f", {len(expired)} abgelaufen" if expired else "")
+        body = f"Hallo,\n\ndiese Fristen stehen in der IT-Dokumentation{_company(conn)} an:\n"
+    else:
+        subject = f"IT-Dokumentation{_company(conn)}: Hinweise"
+        body = f"Hallo,\n\nin der IT-Dokumentation{_company(conn)} steht keine Frist an, aber es gibt Hinweise:\n"
     if expired:
         body += "\nABGELAUFEN\n" + "\n".join(_line(i) for i in expired) + "\n"
     if soon:
@@ -79,6 +83,14 @@ def compose_digest(conn: sqlite3.Connection, items: List[Dict], days: int) -> Tu
         new = 0
     if new:
         body += f"\nNETZWERK\n- Der letzte Netzwerk-Scan hat {new} unbekannte Gerät{'' if new == 1 else 'e'} gefunden (Netzwerk → Scan).\n"
+    try:
+        from .agents import stale_agents, stale_days
+        silent, sdays = stale_agents(conn), stale_days(conn)
+    except Exception:  # noqa: BLE001
+        silent, sdays = [], 3
+    if silent:
+        body += f"\nAGENTEN (seit über {sdays} Tagen kein Bericht)\n"
+        body += "".join(f"- {a['name']}" + (f" ({a['device_name']})" if a["device_name"] else "") + "\n" for a in silent)
     return subject, body + _footer(conn)
 
 
@@ -109,14 +121,16 @@ def send_digest(conn: sqlite3.Connection, force: bool = False) -> Dict:
     cfg = config(conn)
     items = due_items(conn, None, cfg["days"])
     if not items:
-        return {"status": "empty", "count": 0}
+        from .agents import stale_agents
+        if not stale_agents(conn):
+            return {"status": "empty", "count": 0}
     if not cfg["recipients"]:
         raise MailError("Keine Empfänger eingetragen")
     subject, body = compose_digest(conn, items, cfg["days"])
     errors = _send_all(conn, cfg["recipients"], subject, body)
     if len(errors) == len(cfg["recipients"]):
         raise MailError("; ".join(errors))
-    audit(conn, None, "deadline_mail", "deadlines", f"Sammel-Mail mit {len(items)} Fristen an {', '.join(cfg['recipients'])}"
+    audit(conn, None, "deadline_mail", "deadlines", f"Sammel-Mail mit {len(items)} Fristen{' und stillen Agenten' if not items else ''} an {', '.join(cfg['recipients'])}"
           + (" (von Hand)" if force else ""))
     return {"status": "sent", "count": len(items), "errors": errors}
 

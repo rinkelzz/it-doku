@@ -29,6 +29,36 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: pytest -q
 
+  agent:
+    name: Agent ${{ matrix.name }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Windows (PowerShell 5.1), os: windows-latest }
+          - { name: macOS, os: macos-latest }
+          - { name: Linux, os: ubuntu-latest }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Windows – Bericht senden (Windows PowerShell 5.1)
+        if: runner.os == 'Windows'
+        run: python tests/agent_e2e.py powershell.exe -NoProfile -ExecutionPolicy Bypass -File app/agent/itdoku-agent.ps1 -Run -Url "{url}" -Token "{token}" -AllowHttp -SkipUpdateSearch
+      - name: Windows – Einrichten als geplante Aufgabe
+        if: runner.os == 'Windows'
+        run: python tests/agent_e2e.py powershell.exe -NoProfile -ExecutionPolicy Bypass -File app/agent/itdoku-agent.ps1 -Install -Url "{url}" -Token "{token}" -AllowHttp -SkipUpdateSearch
+      - name: Linux/macOS – Bericht senden
+        if: runner.os != 'Windows'
+        run: python tests/agent_e2e.py python3 app/agent/itdoku-agent.py --run --url "{url}" --token "{token}" --allow-http
+      - name: Linux/macOS – Einrichten (Zeitplan)
+        if: runner.os != 'Windows'
+        run: sudo -E env "PATH=$PATH" python tests/agent_e2e.py python3 app/agent/itdoku-agent.py --install --url "{url}" --token "{token}" --allow-http
+
   spk:
     name: SPK bauen
     needs: test
