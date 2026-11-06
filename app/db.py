@@ -388,6 +388,8 @@ DEFAULT_SETTINGS = {
     # Agenten: Adresse, unter der Agenten die App erreichen (Reverse Proxy mit https oder intern per VPN)
     "agent_url": "",
     "agent_stale_days": "3",
+    # Eigener Reverse Proxy im LAN (z. B. Nginx Proxy Manager), dem X-Forwarded-For geglaubt wird
+    "trusted_proxies": "",
 }
 
 

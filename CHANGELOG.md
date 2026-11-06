@@ -2,6 +2,17 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.6.2] – 2026-11-06
+
+### Neu
+- **Eigener Reverse Proxy** (Verwaltung → System): IP-Adresse(n) eines Proxys auf einem anderen Gerät eintragen,
+  z. B. Nginx Proxy Manager mit Portweiterleitung. Von dort übernimmt die App die echte Absender-Adresse aus
+  `X-Forwarded-For` – für die Sperre gegen Durchprobieren (Login und Agent-Schlüssel pro Absender statt für alle
+  gemeinsam), das Protokoll, die Anzeige „von Adresse“ bei Agenten und die nur im LAN erreichbare Paketquelle.
+  Die Seite zeigt, woher die aktuelle Anfrage kommt, und warnt, wenn offensichtlich ein nicht eingetragener Proxy
+  davorsitzt. Alternativ per `ITD_TRUSTED_PROXIES`.
+- README: Anleitung für Nginx Proxy Manager, auch „nur Agenten von außen durchlassen“.
+
 ## [0.6.1] – 2026-11-06
 
 ### Neu

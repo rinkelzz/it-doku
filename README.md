@@ -234,6 +234,17 @@ Für den Zugriff von außen braucht die App eine eigene https-Adresse, z. B. `ht
    Ziel `HTTP localhost:8780`.
 4. In der App unter **Verwaltung → Einstellungen → Öffentliche Adresse** genau diese Adresse eintragen.
 
+**Eigener Proxy auf einem anderen Gerät** (z. B. Nginx Proxy Manager, auf den der Router 80/443 weiterleitet):
+Proxy Host mit Ziel `http://<IP der NAS>:8780` und Let's-Encrypt-Zertifikat anlegen und unter
+**Verwaltung → System → Eigener Reverse Proxy** die IP des Proxys eintragen – sonst sieht die App alle Zugriffe mit
+dessen Adresse. Soll von außen **nur der Agent** durch, im Proxy Host unter *Advanced* eintragen:
+
+```nginx
+if ($request_uri !~ ^/(api/agent/|agent/)) { return 404; }
+```
+
+Bei einem normalen Nginx zusätzlich `client_max_body_size 5m;` setzen (Agent-Berichte bis 4 MB).
+
 Für eine Dokumentation mit Zugangsdaten ist ein **VPN** zur NAS meist die bessere Wahl als eine öffentliche Adresse.
 Den Port im Router **nie** direkt freigeben. Greift jemand per `http://` von außerhalb des Heimnetzes zu, zeigt die
 App einen Warnhinweis.

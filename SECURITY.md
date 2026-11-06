@@ -22,8 +22,12 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
 - **Single Sign-on im DSM-Fenster:** Der Schlüssel (`.proxy_secret` im Paketordner) wird nur von
   Verbindungen über 127.0.0.1 ohne `X-Forwarded-For` angenommen, also nur von `app.cgi` auf der NAS selbst.
 - **Echte Absenderadresse** (`X-Forwarded-For`) wird nur übernommen, wenn die Anfrage vom Reverse Proxy
-  auf derselben NAS (127.0.0.1) kommt. Bei einem Proxy auf einem anderen Gerät sieht die App dessen Adresse –
-  die Login-Sperre greift dann nur noch pro Benutzername.
+  auf derselben NAS (127.0.0.1) kommt oder von einem Proxy, der unter **Verwaltung → System → Eigener Reverse Proxy**
+  (bzw. `ITD_TRUSTED_PROXIES`) eingetragen ist. Bei einer Kette zählt von rechts die erste Adresse, die selbst kein
+  eingetragener Proxy ist; Einträge, die ein Client selbst mitschickt, bleiben wirkungslos. Netze weiter als /16
+  werden nicht angenommen. Ist ein Proxy auf einem anderen Gerät **nicht** eingetragen, sieht die App nur dessen
+  Adresse: Login- und Agent-Sperre treffen dann alle gemeinsam, und die Paketquelle hält Zugriffe übers Internet für
+  lokal.
 - **Keine Klartext-Zugangsdaten in Sicherungen:** Das SMTP-Passwort wird vor dem Sichern entfernt (inklusive
   `VACUUM`, damit es auch nicht in freien Seiten der Datei steht). Der Tresor liegt darin nur verschlüsselt.
 - **Anhänge** (Netzwerkplan, Rechnungen, Fotos): nur PNG, JPG und PDF, erkannt am **Inhalt** (SVG/HTML werden

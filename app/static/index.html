@@ -349,6 +349,20 @@
     </section>
 
     <section class="card asec" data-asec="system">
+      <h2>Eigener Reverse Proxy</h2>
+      <p class="muted small" style="margin-top:0">Läuft vor der IT-Dokumentation ein eigener Proxy auf einem anderen Gerät (z. B. Nginx Proxy Manager
+        mit Portweiterleitung), hier seine IP eintragen. Dann sieht die App die echte Absender-Adresse aus <span class="mono">X-Forwarded-For</span> –
+        wichtig für die Sperre gegen Durchprobieren, das Protokoll und die nur im LAN erreichbare Paketquelle. Der Reverse Proxy von DSM auf der
+        NAS selbst braucht keinen Eintrag.</p>
+      <div class="row">
+        <label style="flex:1">IP-Adresse(n) des Proxys <input id="pxVal" class="mono" placeholder="z. B. 192.168.90.26"></label>
+        <label>&nbsp;<button id="pxSave">Speichern</button></label>
+      </div>
+      <p class="small" id="pxInfo"></p>
+      <div class="err" id="pxErr"></div>
+    </section>
+
+    <section class="card asec" data-asec="system">
       <h2>Datensicherung</h2>
       <p class="muted small" style="margin-top:0">Jede Nacht eine geprüfte Sicherung der Datenbank: immer im Paketordner (die letzten 7)
         und zusätzlich in einem freigegebenen Ordner, den Hyper Backup mitsichern kann. Achtung: Beim Deinstallieren des Pakets

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from .. import portcfg
+from .. import portcfg, proxy
 from ..config import THEMES, settings as app_settings
 from ..csvsafe import row as safe_row
 from ..db import audit, get_db, get_setting, set_setting
@@ -120,6 +120,31 @@ def update_settings(data: SettingsIn, admin=Depends(admin_user), conn: sqlite3.C
 
 class PortIn(BaseModel):
     port: int = Field(..., ge=1, le=65535)
+
+
+class ProxyIn(BaseModel):
+    trusted_proxies: str = Field("", max_length=500)
+
+
+@router.get("/settings/proxy")
+def get_proxy(request: Request, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    """Eingetragene Proxys und – zum Ausfüllen – woher diese Anfrage gerade kommt."""
+    return {"trusted_proxies": get_setting(conn, "trusted_proxies"), "env": proxy.env_entries(),
+            "peer": request.scope.get("itd_peer", ""), "client": request.client.host if request.client else "",
+            "forwarded": request.headers.get("x-forwarded-for", "")}
+
+
+@router.put("/settings/proxy")
+def set_proxy(data: ProxyIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    nets, errors = proxy.parse(data.trusted_proxies)
+    if errors:
+        raise HTTPException(400, errors[0])
+    value = ", ".join(str(n.network_address) if n.num_addresses == 1 else str(n) for n in nets)
+    old = get_setting(conn, "trusted_proxies")
+    set_setting(conn, "trusted_proxies", value)
+    proxy.configure(value)
+    audit(conn, admin["id"], "settings_updated", "settings", f"Vertrauenswürdiger Reverse Proxy: {old or '–'} → {value or '–'}")
+    return {"trusted_proxies": value}
 
 
 @router.post("/settings/port")

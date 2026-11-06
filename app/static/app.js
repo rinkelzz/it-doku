@@ -163,6 +163,7 @@ async function loadAdmin() {
   if (window.loadVaultAdmin) jobs.push(loadVaultAdmin().catch(e => { $("vaErr").textContent = e.message; }));
   if (window.loadDeadlines) jobs.push(loadDeadlines().catch(e => { $("dlErr").textContent = e.message; }));
   if (window.loadAgents) jobs.push(loadAgents().catch(e => { $("agErr").textContent = e.message; }));
+  jobs.push(loadProxy().catch(e => { $("pxErr").textContent = e.message; }));
   await Promise.all(jobs);
 }
 
@@ -592,3 +593,22 @@ document.addEventListener("click", (e) => {
   try { localStorage.setItem("itd_sort", JSON.stringify(SORTS)); } catch (err) { /* egal */ }
   sortTable(table);
 });
+
+// ---------- Eigener Reverse Proxy (Verwaltung → System) ----------
+async function loadProxy() {
+  const r = await api("settings/proxy");
+  $("pxVal").value = r.trusted_proxies || "";
+  const via = r.peer && r.peer !== r.client;
+  $("pxInfo").innerHTML = (r.env ? `<span class="muted">Zusätzlich aus ITD_TRUSTED_PROXIES: <span class="mono">${esc(r.env)}</span>.</span><br>` : "") +
+    (via ? `Diese Anfrage kam über den Proxy <span class="mono">${esc(r.peer)}</span> von <span class="mono">${esc(r.client)}</span> ✓`
+      : r.forwarded ? `<span class="tag warn">Achtung</span> Diese Anfrage kam von <span class="mono">${esc(r.peer || r.client)}</span> mit X-Forwarded-For
+          <span class="mono">${esc(r.forwarded)}</span> – das ist vermutlich dein Proxy. Seine IP hier eintragen.`
+      : `<span class="muted">Diese Anfrage kam direkt von <span class="mono">${esc(r.client)}</span>.</span>`);
+}
+$("pxSave").onclick = async () => {
+  $("pxErr").textContent = "";
+  try {
+    await api("settings/proxy", { method: "PUT", body: { trusted_proxies: $("pxVal").value } });
+    await loadProxy(); okMsg($("pxErr"), "Gespeichert.");
+  } catch (e) { $("pxErr").textContent = e.message; }
+};
