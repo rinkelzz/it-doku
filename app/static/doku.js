@@ -779,3 +779,118 @@ $("gq").onkeydown = (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName) && state.me) { e.preventDefault(); $("gq").focus(); }
 });
+
+// ---------- Notfall-Handbuch ----------
+$("homeHandbook").onclick = async () => {
+  const b = $("homeHandbook"); b.disabled = true;
+  try { await downloadFile("api/v1/handbook.pdf" + (doc.site ? "?site_id=" + doc.site : ""), "notfall-handbuch.pdf"); }
+  catch (e) { $("homeErr").textContent = e.message; }
+  finally { b.disabled = false; }
+};
+
+// ---------- CSV-Import ----------
+const imp = { b64: "", mapping: null, res: null };
+$("devImport").onclick = () => {
+  imp.b64 = ""; imp.mapping = null; imp.res = null;
+  $("sheet").innerHTML = `<div class="card wide">
+    <div class="toolbar"><h2>Geräte aus CSV importieren</h2><button data-x>✕</button></div>
+    <p class="muted small" style="margin:0">Zum Beispiel ein Excel-Export oder eine Inventarliste (CSV mit ; , oder Tab). Im nächsten Schritt ordnest du die
+      Spalten zu und siehst vor dem Import, was passiert. Geräte mit schon vorhandener Seriennummer werden übersprungen.</p>
+    <label class="btn" style="justify-self:start">CSV-Datei auswählen <input type="file" id="impFile" accept=".csv,.txt,text/csv" hidden></label>
+    <div id="impBody"></div><div class="err" id="impErr"></div></div>`;
+  $("sheet").classList.remove("hidden");
+  $("sheet").querySelector("[data-x]").onclick = closeSheet;
+  $("impFile").onchange = () => {
+    const f = $("impFile").files[0]; $("impErr").textContent = "";
+    if (!f) return;
+    if (f.size > 2 * 1024 * 1024) { $("impErr").textContent = "Die Datei ist zu groß (höchstens 2 MB)"; return; }
+    const rd = new FileReader();
+    rd.onload = () => { imp.b64 = String(rd.result).split(",")[1] || ""; imp.mapping = null; impPreview(); };
+    rd.readAsDataURL(f);
+  };
+};
+function impOptions() {
+  const el = (id) => $(id);
+  return { data_b64: imp.b64, mapping: imp.mapping, create_types: el("impTypes") ? el("impTypes").checked : true,
+           create_sites: el("impSites") ? el("impSites").checked : true,
+           default_site_id: el("impSite") && el("impSite").value ? Number(el("impSite").value) : null };
+}
+async function impPreview() {
+  $("impErr").textContent = "";
+  let r;
+  try { r = await api("devices/import/preview", { method: "POST", body: impOptions() }); } catch (e) { $("impErr").textContent = e.message; return; }
+  imp.res = r; imp.mapping = r.mapping;
+  const byCol = {}; Object.entries(r.mapping).forEach(([f, i]) => { byCol[i] = f; });
+  const fieldOpts = (col) => `<option value="">– nicht übernehmen –</option>` + Object.entries(r.fields).map(([k, l]) =>
+    `<option value="${k}" ${byCol[col] === k ? "selected" : ""}>${esc(l)}${k === "name" ? " *" : ""}</option>`).join("");
+  const sample = (i) => r.sample.map(row => row[i] || "").filter(Boolean).slice(0, 2).join(" · ");
+  const icon = { create: "✅", skip: "⏭️", error: "❌" };
+  const rows = r.rows.map(x => `<tr class="${x.action === "error" ? "inactive" : ""}"><td class="num">${x.line}</td><td>${icon[x.action]}</td>
+    <td>${esc(x.values.name || x.show.name || "–")}</td><td>${esc(x.show.type || "")}</td>${multiSite() ? `<td>${esc(x.show.site || "")}</td>` : ""}
+    <td class="mono">${esc(x.show.serial || "")}</td><td class="mono">${esc(x.show.ip || "")}</td>
+    <td class="wrap small">${esc(x.errors.concat(x.warnings).join(" · "))}</td></tr>`).join("");
+  $("impBody").innerHTML = `
+    <h3 style="margin:6px 0">1. Spalten zuordnen <span class="muted small" style="font-weight:400">(${r.total} Zeilen erkannt)</span></h3>
+    <div class="scroll"><table><thead><tr><th>Spalte in der Datei</th><th>Beispiel</th><th>wird zu</th></tr></thead><tbody>
+      ${r.headers.map((h, i) => `<tr><td><b>${esc(h || "(ohne Titel)")}</b></td><td class="small muted wrap">${esc(sample(i))}</td>
+        <td><select data-col="${i}">${fieldOpts(i)}</select></td></tr>`).join("")}</tbody></table></div>
+    <div class="row" style="margin-top:8px"><label class="inline"><input type="checkbox" id="impTypes" checked> unbekannte Gerätetypen anlegen</label>
+      <label class="inline"><input type="checkbox" id="impSites" checked> unbekannte Standorte anlegen</label>
+      ${multiSite() ? `<label>Standort, wenn leer <select id="impSite"><option value="">–</option>${doc.sites.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></label>` : ""}</div>
+    <h3 style="margin:14px 0 6px">2. Vorschau ${r.needs_name ? "" : `<span class="muted small" style="font-weight:400">· ✅ ${r.counts.create} anlegen · ⏭️ ${r.counts.skip} überspringen · ❌ ${r.counts.error} fehlerhaft</span>`}</h3>
+    ${r.needs_name ? '<p class="httpwarn" style="margin:0">Bitte die Spalte für den <b>Namen</b> zuordnen.</p>' :
+      `<div class="scroll" style="max-height:340px"><table><thead><tr><th class="num">Zeile</th><th></th><th>Name</th><th>Typ</th>${multiSite() ? "<th>Standort</th>" : ""}<th>Seriennr.</th><th>IP</th><th>Hinweise</th></tr></thead>
+       <tbody>${rows}</tbody></table></div>${r.total > r.rows.length ? `<p class="muted small">Vorschau zeigt die ersten ${r.rows.length} Zeilen.</p>` : ""}`}
+    <div class="row" style="margin-top:12px"><button class="primary" id="impGo" ${r.needs_name || !r.counts.create ? "disabled" : ""}>${r.counts.create || 0} Geräte importieren</button>
+      <button data-x2>Abbrechen</button></div>`;
+  $("impBody").querySelector("[data-x2]").onclick = closeSheet;
+  const opts = impOptions();
+  if ($("impTypes")) $("impTypes").checked = opts.create_types;
+  $$("#impBody [data-col]").forEach(sel => sel.onchange = () => {
+    $$("#impBody [data-col]").forEach(s => { if (s !== sel && sel.value && s.value === sel.value) s.value = ""; });
+    imp.mapping = {}; $$("#impBody [data-col]").forEach(s => { if (s.value) imp.mapping[s.value] = Number(s.dataset.col); });
+    impPreview();
+  });
+  ["impTypes", "impSites", "impSite"].forEach(id => { if ($(id)) $(id).onchange = impPreview; });
+  $("impGo").onclick = async () => {
+    $("impGo").disabled = true;
+    try {
+      const res = await api("devices/import", { method: "POST", body: impOptions() });
+      closeSheet(); await loadRef(true); doc.suggest = null; await loadDevices();
+      okMsg($("devErr"), `${res.created} Geräte importiert` + (res.skipped ? `, ${res.skipped} übersprungen` : "") + (res.errors ? `, ${res.errors} fehlerhaft` : "") +
+        (res.new_types.length ? ` · neue Typen: ${res.new_types.join(", ")}` : "") + (res.new_sites.length ? ` · neue Standorte: ${res.new_sites.join(", ")}` : ""));
+    } catch (e) { $("impErr").textContent = e.message; $("impGo").disabled = false; }
+  };
+}
+
+// ---------- Verwaltung → Mail: Fristen-Mail ----------
+async function loadDeadlines() {
+  const d = await api("deadlines");
+  if (!$("dlDay").options.length) {
+    $("dlDay").innerHTML = d.weekdays.map((w, i) => `<option value="${i}">${w}</option>`).join("");
+    $("dlHour").innerHTML = Array.from({ length: 24 }, (_, h) => `<option value="${h}">${String(h).padStart(2, "0")}:00 Uhr</option>`).join("");
+  }
+  $("dlOn").checked = d.enabled; $("dlTo").value = d.recipients_raw || ""; $("dlDay").value = String(d.weekday);
+  $("dlHour").value = String(d.hour); $("dlDays").value = String(d.days);
+  if (![...$("dlDays").options].some(o => o.value === String(d.days))) $("dlDays").insertAdjacentHTML("beforeend", `<option value="${d.days}" selected>${d.days} Tage</option>`);
+  $("dlSmtp").classList.toggle("hidden", d.smtp_ok);
+  $("dlLast").textContent = d.last_result ? "Zuletzt: " + d.last_result : "";
+  $("dlPreview").innerHTML = d.preview.length ? d.preview.map(x => `<div class="due"><span class="ti">${x.kind === "license" ? "🔑" : esc(x.icon || "🖥️")}</span>
+      <div>${esc(x.name)}<small>${esc(x.what)}${x.info ? " · " + esc(x.info) : ""} · ${deDate(x.date)}</small></div>${dueTag(x.date, x.days)}</div>`).join("")
+    : `<p class="muted small">Gerade ist in den nächsten ${d.days} Tagen nichts fällig – dann kommt auch keine Mail.</p>`;
+}
+window.loadDeadlines = loadDeadlines;
+$("dlSave").onclick = async () => {
+  $("dlErr").textContent = "";
+  try {
+    await api("deadlines", { method: "PATCH", body: { enabled: $("dlOn").checked, recipients: $("dlTo").value, weekday: Number($("dlDay").value),
+      hour: Number($("dlHour").value), days: Number($("dlDays").value) } });
+    await loadDeadlines(); okMsg($("dlErr"), "Gespeichert.");
+  } catch (e) { $("dlErr").textContent = e.message; }
+};
+$("dlSend").onclick = async () => {
+  $("dlErr").textContent = ""; $("dlSend").disabled = true;
+  try { okMsg($("dlErr"), (await api("deadlines/send-now", { method: "POST" })).message); await loadDeadlines(); }
+  catch (e) { $("dlErr").textContent = e.message; }
+  finally { $("dlSend").disabled = false; }
+};

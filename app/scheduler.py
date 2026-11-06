@@ -1,4 +1,4 @@
-"""Hintergrund-Aufgaben: nächtliche Datensicherung und Update-Prüfung (später: Fristen-Mails).
+"""Hintergrund-Aufgaben: Fristen-Mails, nächtliche Datensicherung und Update-Prüfung.
 
 Ein Thread, der alle paar Minuten nachsieht, ob etwas fällig ist. Fehler werden protokolliert,
 stoppen aber nie die App.
@@ -13,6 +13,18 @@ _thread: Optional[threading.Thread] = None
 
 
 def run_once() -> None:
+    try:
+        from . import deadlines
+        from .db import connect
+        conn = connect()
+        try:
+            r = deadlines.run_due(conn)
+            if r and (r.get("error") or r["reminders"] or r["digest"]):
+                print(f"[itdoku] Fristen-Mail: {r}", flush=True)
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001
+        print(f"[itdoku] Fristen-Mail FEHLER: {e}", flush=True)
     try:
         from . import backup
         b = backup.run_due()

@@ -259,10 +259,22 @@ CREATE INDEX IF NOT EXISTS idx_cred_owner ON credentials(owner_type, owner_id);
         conn.execute("ALTER TABLE licenses ADD COLUMN key_enc TEXT")  # Lizenzschlüssel, verschlüsselt
 
 
+
+def _m4_fristen(conn: sqlite3.Connection) -> None:
+    """Version 0.4: verschickte Fristen-Erinnerungen (damit keine doppelt kommt)."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS deadline_sent (
+    key      TEXT PRIMARY KEY,                -- art:id:datum:stichtag
+    sent_at  TEXT NOT NULL
+);
+""")
+
+
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_stammdaten,
     3: _m3_tresor,
+    4: _m4_fristen,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
@@ -292,6 +304,15 @@ DEFAULT_SETTINGS = {
     "backup_dir": "",              # z. B. /volume1/backup/it-doku
     # Tresor: nach so vielen Minuten ohne Aktivität sperren
     "vault_timeout_min": "15",
+    # Fristen-Mail: wöchentliche Sammel-Mail + Erinnerung 14 Tage vorher und am Ablauftag
+    "deadline_enabled": "1",
+    "deadline_recipients": "",     # Komma-getrennt; leer = keine Mails
+    "deadline_weekday": "0",       # 0 = Montag
+    "deadline_hour": "7",
+    "deadline_days": "90",
+    "deadline_last_run": "",
+    "deadline_last_week": "",
+    "deadline_last_result": "",
 }
 
 

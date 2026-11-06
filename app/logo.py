@@ -202,10 +202,45 @@ def pdf_image(conn) -> Optional[Dict]:
     if not got:
         return None
     raw, meta = got
-    if meta.get("format") == "jpeg":
+    return image_from_bytes(raw, meta.get("format") or "png")
+
+
+def _png_passthrough(raw: bytes) -> Optional[Dict]:
+    """8-Bit-PNG ohne Transparenz: Bilddaten unverändert übernehmen (PDF kennt die PNG-Filter) – schnell auch bei großen Plänen."""
+    pos, idat, ihdr = 8, [], None
+    while pos + 8 <= len(raw):
+        length = struct.unpack(">I", raw[pos:pos + 4])[0]
+        kind = raw[pos + 4:pos + 8]
+        chunk = raw[pos + 8:pos + 8 + length]
+        pos += 12 + length
+        if kind == b"IHDR":
+            ihdr = struct.unpack(">IIBBBBB", chunk)
+        elif kind == b"IDAT":
+            idat.append(chunk)
+        elif kind in (b"tRNS", b"PLTE"):
+            return None
+        elif kind == b"IEND":
+            break
+    if not ihdr or not idat:
+        return None
+    w, h, depth, ctype, _, _, interlace = ihdr
+    if depth != 8 or interlace or ctype not in (0, 2):
+        return None
+    colors = 1 if ctype == 0 else 3
+    return {"width": w, "height": h, "filter": "FlateDecode", "colorspace": "DeviceGray" if colors == 1 else "DeviceRGB",
+            "data": b"".join(idat), "alpha": None,
+            "parms": f"<< /Predictor 15 /Colors {colors} /BitsPerComponent 8 /Columns {w} >>"}
+
+
+def image_from_bytes(raw: bytes, fmt: str) -> Optional[Dict]:
+    """PNG/JPEG → Bilddaten fürs PDF (auch für den Netzwerkplan)."""
+    if fmt == "jpeg":
         w, h, comps = _jpeg_size(raw)
         return {"width": w, "height": h, "filter": "DCTDecode", "colorspace": "DeviceGray" if comps == 1 else "DeviceRGB",
                 "data": raw, "alpha": None}
+    fast = _png_passthrough(raw)
+    if fast:
+        return fast
     w, h, px, alpha = decode_png(raw)
     gray = len(px) == w * h
     return {"width": w, "height": h, "filter": "FlateDecode", "colorspace": "DeviceGray" if gray else "DeviceRGB",

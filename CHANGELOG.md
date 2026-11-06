@@ -2,6 +2,23 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.4.0] – 2026-11-06
+
+### Neu
+- **Fristen-Mail** (Verwaltung → Mail): einmal pro Woche (Wochentag und Uhrzeit wählbar) eine Sammel-Mail mit
+  abgelaufenen und bald ablaufenden Lizenzen, Domains, Zertifikaten und Garantien – nur wenn etwas fällig ist. Dazu je
+  Eintrag eine Erinnerung **14 Tage vorher** und **am Ablauftag** (verpasste Tage werden nachgeholt, keine Mail doppelt;
+  wird ein Ablaufdatum verlängert, gibt es für das neue Datum wieder Erinnerungen). Empfänger frei eintragbar,
+  Vorwarnzeit 30–180 Tage, Vorschau „Das stünde gerade in der Mail“ und „Sammel-Mail jetzt senden“.
+- **Notfall-Handbuch als PDF** (Knopf auf der Übersicht): Notfall-Kontakte und weitere Ansprechpartner, je Standort
+  Adresse, Internetanschluss, Netze/VLANs, IP-Listen mit DHCP-Bereich und der Netzwerkplan als Bild. Enthält bewusst
+  keine Passwörter. Große PNG-Pläne werden ohne Umrechnung übernommen (schnell auch auf ARM-NAS).
+- **CSV-Import für Geräte** (Geräte → Import): beliebige CSV (Excel-Export, Inventarliste; Trennzeichen ; , oder Tab;
+  UTF-8 oder Windows-1252). Spalten werden automatisch erkannt und lassen sich zuordnen; die Vorschau zeigt je Zeile,
+  was passiert. Datumsangaben wie 13.03.2028, 2028-03-13 oder 03/2028, Status-Wörter wie „in Betrieb“ oder „defekt“,
+  IP mit MAC und Hostname. Dubletten per Seriennummer werden übersprungen, unbekannte Typen und Standorte auf Wunsch
+  angelegt. Alles in einer Transaktion.
+
 ## [0.3.0] – 2026-11-06
 
 ### Neu
@@ -70,6 +87,7 @@ Erste Version: das Fundament der IT-Dokumentation (übernommen aus [Zeitmanageme
 - **Port** in der App änderbar, Mailversand über den eigenen SMTP-Server mit Testmail.
 - Neues Symbol (Dokument mit Schloss).
 
+[0.4.0]: https://github.com/rinkelzz/it-doku/releases/tag/v0.4.0
 [0.3.0]: https://github.com/rinkelzz/it-doku/releases/tag/v0.3.0
 [0.2.0]: https://github.com/rinkelzz/it-doku/releases/tag/v0.2.0
 [0.1.0]: https://github.com/rinkelzz/it-doku/releases/tag/v0.1.0

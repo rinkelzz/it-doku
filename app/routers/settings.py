@@ -167,6 +167,9 @@ AUDIT_ACTIONS = {
     "doc_deleted": ("doku", "Gelöscht"),
     "file_added": ("doku", "Anhang hinzugefügt"),
     "file_deleted": ("doku", "Anhang gelöscht"),
+    "handbook_pdf": ("doku", "Notfall-Handbuch erstellt"),
+    "devices_imported": ("doku", "Geräte importiert (CSV)"),
+    "deadline_mail": ("einstellungen", "Fristen-Mail verschickt"),
     "secret_shown": ("tresor", "Geheimnis angezeigt"),
     "secret_copied": ("tresor", "Geheimnis kopiert"),
     "vault_setup": ("tresor", "Tresor eingerichtet"),
@@ -295,3 +298,64 @@ def audit_export(
     audit(conn, admin["id"], "export_csv", "audit", f"Änderungsprotokoll, {len(rows)} Einträge")
     return Response(content="﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": 'attachment; filename="aenderungsprotokoll.csv"'})
+
+
+# --- Fristen-Mail ---------------------------------------------------------------
+
+class DeadlineIn(BaseModel):
+    enabled: Optional[bool] = None
+    recipients: Optional[str] = Field(None, max_length=1000, description="E-Mail-Adressen, durch Komma getrennt")
+    weekday: Optional[int] = Field(None, ge=0, le=6, description="0 = Montag")
+    hour: Optional[int] = Field(None, ge=0, le=23)
+    days: Optional[int] = Field(None, ge=7, le=365, description="Vorwarnzeit in Tagen")
+
+
+def _deadline_out(conn) -> dict:
+    from .. import deadlines
+    from ..doku import due_items
+    cfg = deadlines.config(conn)
+    cfg["recipients_raw"] = get_setting(conn, "deadline_recipients")
+    cfg["weekdays"] = deadlines.WEEKDAYS
+    cfg["preview"] = due_items(conn, None, cfg["days"])
+    cfg["smtp_ok"] = bool(smtp_config(conn)["host"])
+    return cfg
+
+
+@router.get("/deadlines")
+def get_deadlines(admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    return _deadline_out(conn)
+
+
+@router.patch("/deadlines")
+def update_deadlines(data: DeadlineIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    changes = data.model_dump(exclude_unset=True)
+    if "recipients" in changes:
+        parts = [a.strip() for a in (data.recipients or "").replace(";", ",").replace("\n", ",").split(",") if a.strip()]
+        bad = [a for a in parts if not valid_email(a)]
+        if bad:
+            raise HTTPException(400, "Ungültige Adresse: " + ", ".join(bad))
+        set_setting(conn, "deadline_recipients", ", ".join(parts))
+    for key in ("weekday", "hour", "days"):
+        if changes.get(key) is not None:
+            set_setting(conn, f"deadline_{key}", str(changes[key]))
+    if changes.get("enabled") is not None:
+        set_setting(conn, "deadline_enabled", "1" if data.enabled else "0")
+    if changes:
+        audit(conn, admin["id"], "settings_updated", "deadlines", f"Fristen-Mail: {changes}")
+    return _deadline_out(conn)
+
+
+@router.post("/deadlines/send-now")
+def send_deadlines_now(admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    """Sammel-Mail sofort an alle Empfänger (unabhängig vom Wochentag)."""
+    from .. import deadlines
+    try:
+        r = deadlines.send_digest(conn, force=True)
+    except MailError as e:
+        raise HTTPException(502 if smtp_config(conn)["host"] else 400, str(e))
+    if r["status"] == "empty":
+        return {"ok": True, "message": "Gerade ist nichts fällig – es wurde keine Mail verschickt."}
+    msg = f"Sammel-Mail mit {r['count']} Fristen verschickt"
+    if r.get("errors"):
+        msg += " – Fehler bei: " + "; ".join(r["errors"])
+    return {"ok": True, "message": msg}

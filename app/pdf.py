@@ -110,9 +110,10 @@ class PDF:
                          b"/BitsPerComponent 8 /Filter /FlateDecode /Length %d >>\nstream\n" % (
                              img["width"], img["height"], len(img["alpha"])) + img["alpha"] + b"\nendstream")
                 smask = b" /SMask %d 0 R" % sm
+            parms = (b" /DecodeParms " + img["parms"].encode()) if img.get("parms") else b""
             xobjs.append(add(b"<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /%s "
-                             b"/BitsPerComponent 8 /Filter /%s%s /Length %d >>\nstream\n" % (
-                                 img["width"], img["height"], img["colorspace"].encode(), img["filter"].encode(), smask,
+                             b"/BitsPerComponent 8 /Filter /%s%s%s /Length %d >>\nstream\n" % (
+                                 img["width"], img["height"], img["colorspace"].encode(), img["filter"].encode(), smask, parms,
                                  len(img["data"])) + img["data"] + b"\nendstream"))
         xres = (b" /XObject << " + b" ".join(b"/Im%d %d 0 R" % (i + 1, o) for i, o in enumerate(xobjs)) + b" >>") if xobjs else b""
         kids = []

@@ -11,8 +11,8 @@ Lizenzen, Netzwerkplan und Zugangsdaten (verschlüsselt im Tresor). Sie läuft a
 eigenem Fenster in DSM. Die Daten bleiben beim Kunden; der IT-Dienstleister und eine Vertrauensperson beim Kunden
 haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 
-> **Stand 0.3:** Geräte, Netzwerk, Lizenzen, Ansprechpartner und Zugangsdaten im verschlüsselten Tresor
-> (mit 2FA-Codes und Notfall-Schlüssel) sind da – siehe [Fahrplan](#fahrplan).
+> **Stand 0.4:** Geräte, Netzwerk, Lizenzen, Ansprechpartner, Zugangsdaten im verschlüsselten Tresor, Fristen-Mail,
+> Notfall-Handbuch als PDF und CSV-Import – siehe [Fahrplan](#fahrplan).
 
 ![Übersicht](docs/screenshots/uebersicht.png)
 
@@ -45,12 +45,20 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 - **Ansprechpartner** beim Kunden und externe Dienstleister mit Kundennummer, Notfall-Markierung.
 - **Globale Suche** (Taste `/`) über Geräte, IP-/MAC-Adressen, Seriennummern, Personen, Telefonnummern, Lizenzen und Netze.
 - **Anhänge** (PNG, JPG, PDF bis 10 MB) an Geräten und Lizenzen – in der Datenbank, also in jeder Sicherung.
+- **Fristen-Mail:** wöchentliche Sammel-Mail mit ablaufenden Lizenzen, Domains, Zertifikaten und Garantien an frei
+  wählbare Empfänger, dazu je Eintrag eine Erinnerung 14 Tage vorher und am Ablauftag (Verwaltung → Mail).
+- **Notfall-Handbuch als PDF** (Übersicht): Notfall-Kontakte, Internetanschluss, Netze, IP-Listen und Netzwerkplan je
+  Standort – ohne Passwörter, zum Ausdrucken.
+- **CSV-Import für Geräte:** beliebige Inventarliste hochladen, Spalten zuordnen, Vorschau prüfen, importieren.
+  Dubletten (gleiche Seriennummer) werden übersprungen.
 
 | Übersicht | Gerät | Netzwerk |
 |---|---|---|
 | ![Übersicht](docs/screenshots/uebersicht.png) | ![Gerät](docs/screenshots/geraet.png) | ![Netzwerk](docs/screenshots/netzwerk.png) |
 | **Geräte** | **Lizenzen** | **Kontakte** |
 | ![Geräte](docs/screenshots/geraete.png) | ![Lizenzen](docs/screenshots/lizenzen.png) | ![Kontakte](docs/screenshots/kontakte.png) |
+| **CSV-Import** | **Fristen-Mail** | |
+| ![CSV-Import](docs/screenshots/import.png) | ![Fristen-Mail](docs/screenshots/fristen-mail.png) | |
 | **Suche** | **Stammdaten** | **Handy** |
 | ![Suche](docs/screenshots/suche.png) | ![Stammdaten](docs/screenshots/stammdaten.png) | ![Handy](docs/screenshots/handy.png) |
 
@@ -117,7 +125,7 @@ IT-Dokumentation ein Benutzer mit gleichem Namen angelegt ist. Beides lässt sic
 | **0.1** ✔ | Fundament: SPK, DSM-Fenster, Single Sign-on, Benutzer, Sicherung, Updates, Protokoll |
 | **0.2** ✔ | Stammdaten: Standorte, Ansprechpartner, Geräte mit frei pflegbaren Typen und Verbindungen, Lizenzen inkl. Domains und Zertifikate, Netze/VLANs mit IP-Liste, Netzwerkplan, Internetanschluss, Anhänge, Verlauf, globale Suche |
 | **0.3** ✔ | Tresor: Zugangsdaten mit Tresor-Passwort pro Benutzer, Einladungscode, Notfall-Schlüssel als PDF, Auto-Sperre, Anzeigen/Kopieren mit Protokoll, Passwort-Generator, 2FA-Codes (TOTP), verschlüsselte Lizenzschlüssel |
-| 0.4 | Komfort: Sammel-Mail zu ablaufenden Lizenzen, Garantien, Zertifikaten und Domains; PDF „Notfall-Handbuch“ (ohne und – bei geöffnetem Tresor – mit Passwörtern); CSV-Import für Geräte |
+| **0.4** ✔ | Komfort: Fristen-Mail (wöchentlich + Stichtage), PDF „Notfall-Handbuch“ (Kontakte, Internet, Netzwerk), CSV-Import für Geräte mit Spaltenzuordnung |
 | später | Netzwerk-Scan, Wiki-Seiten für Anleitungen, Verknüpfung mit dem Helpdesk aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) |
 
 ## Installation auf der Synology
@@ -227,7 +235,9 @@ customer's own NAS, in its own DSM window with single sign-on. The user interfac
 - 0.3 (vault): credentials (password, notes, TOTP secret) and license keys encrypted with a random data key
   (AES-256-CTR + HMAC-SHA-256, pure Python), wrapped per user with a vault password (PBKDF2) and with a printable
   recovery key; invitation codes, auto-lock, audited show/copy, password generator, TOTP codes.
-- Planned: expiry reminders, emergency handbook PDF and CSV import (0.4).
+- 0.4: weekly expiry digest plus reminders 14 days before and on the day, emergency handbook PDF (contacts, internet,
+  networks, IP lists, diagram – no passwords), CSV import for devices with column mapping and preview.
+- Planned: network scan, wiki pages for how-tos, link to the Zeitmanagement helpdesk.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/it-doku/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.

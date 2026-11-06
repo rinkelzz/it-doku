@@ -161,6 +161,7 @@ async function loadAdmin() {
   jobs.push(initAudit().catch(e => { $("alErr").textContent = e.message; }));
   if (window.loadStammdaten) jobs.push(loadStammdaten().catch(e => { $("siteErr").textContent = e.message; }));
   if (window.loadVaultAdmin) jobs.push(loadVaultAdmin().catch(e => { $("vaErr").textContent = e.message; }));
+  if (window.loadDeadlines) jobs.push(loadDeadlines().catch(e => { $("dlErr").textContent = e.message; }));
   await Promise.all(jobs);
 }
 

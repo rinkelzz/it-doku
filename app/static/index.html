@@ -48,7 +48,8 @@
   <!-- ÜBERSICHT -->
   <div data-page="home" class="page hidden">
     <section class="card">
-      <div class="toolbar"><h2 id="homeTitle">Übersicht</h2><select class="siteSel hidden" id="homeSite" aria-label="Standort"></select></div>
+      <div class="toolbar"><h2 id="homeTitle">Übersicht</h2><div class="row"><select class="siteSel hidden" id="homeSite" aria-label="Standort"></select>
+        <button id="homeHandbook" title="Notfall-Kontakte, Internet, Netze, IP-Listen und Netzwerkplan als PDF – ohne Passwörter">📄 Notfall-Handbuch</button></div></div>
       <div class="stats" style="margin-top:0" id="homeStats"></div>
     </section>
     <div class="g2">
@@ -70,7 +71,7 @@
         <select id="devMobileSel" class="mobileOnly" aria-label="Filter"></select>
         <div class="toolbar"><h2 id="devTitle">Geräte</h2>
           <div class="row"><input id="devQ" type="search" placeholder="Filtern …" style="width:200px" maxlength="100">
-            <button id="devCsv">CSV</button><button class="primary admin hidden" id="devNew">＋ Gerät</button></div></div>
+            <button id="devCsv">CSV</button><button class="admin hidden" id="devImport">Import</button><button class="primary admin hidden" id="devNew">＋ Gerät</button></div></div>
         <div class="err" id="devErr"></div>
         <div class="scroll desktopOnly"><table class="list" id="devTable"></table></div>
         <div class="mobileOnly"><div class="mcards" id="devCards"></div></div>
@@ -255,8 +256,30 @@
     </section>
 
     <section class="card asec" data-asec="mail">
+      <div class="toolbar"><h2>Fristen-Mail</h2><span class="small muted" id="dlLast"></span></div>
+      <p class="muted small" style="margin-top:-6px">Eine Sammel-Mail pro Woche mit abgelaufenen und bald ablaufenden Lizenzen, Domains, Zertifikaten und
+        Garantien – nur wenn etwas fällig ist. Dazu je Eintrag eine Erinnerung <b>14 Tage vorher</b> und <b>am Ablauftag</b>.</p>
+      <div class="httpwarn hidden" id="dlSmtp">Noch kein Mailserver eingetragen – bitte unten unter <b>Mailserver (SMTP)</b> einrichten.</div>
+      <div class="setgrid">
+        <fieldset><legend>Empfänger</legend>
+          <label class="inline"><input type="checkbox" id="dlOn"> Fristen-Mails verschicken</label>
+          <label>E-Mail-Adressen (durch Komma getrennt) <input id="dlTo" placeholder="tim@rinkel.online, praxis@physio-muster.de"></label>
+        </fieldset>
+        <fieldset><legend>Zeitpunkt</legend>
+          <div class="row"><label>Sammel-Mail am <select id="dlDay"></select></label><label>ab <select id="dlHour"></select></label></div>
+          <label>Vorwarnzeit <select id="dlDays"><option value="30">30 Tage</option><option value="60">60 Tage</option><option value="90">90 Tage</option>
+            <option value="180">180 Tage</option></select></label>
+        </fieldset>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="primary" id="dlSave">Speichern</button><button id="dlSend">Sammel-Mail jetzt senden</button></div>
+      <div class="err" id="dlErr"></div>
+      <h3>Das stünde gerade in der Mail</h3>
+      <div id="dlPreview"></div>
+    </section>
+
+    <section class="card asec" data-asec="mail">
       <h2>Mailserver (SMTP)</h2>
-      <p class="muted small" style="margin-top:0">Für Testmails und später die Sammel-Mail mit ablaufenden Lizenzen und Garantien.</p>
+      <p class="muted small" style="margin-top:0">Für Testmails und die Fristen-Mail.</p>
       <p class="muted small" style="margin-top:0">Das Passwort wird nicht in Datensicherungen gespeichert.</p>
       <div class="setgrid">
         <fieldset><legend>Server</legend>

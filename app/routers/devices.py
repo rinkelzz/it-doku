@@ -149,6 +149,66 @@ def export_csv(site_id: Optional[int] = None, status: Optional[str] = None,
                     headers={"Content-Disposition": 'attachment; filename="geraete.csv"'})
 
 
+class ImportIn(BaseModel):
+    data_b64: str = Field(..., max_length=3_000_000, description="CSV-Datei, Base64")
+    mapping: Optional[dict] = Field(None, description="Feld → Spaltennummer (0-basiert); leer = automatisch")
+    create_types: bool = True
+    create_sites: bool = True
+    default_site_id: Optional[int] = None
+
+
+def _import_prepare(data: ImportIn, conn):
+    import base64
+    import binascii
+    from .. import importer
+    try:
+        raw = base64.b64decode(data.data_b64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(400, "Datei konnte nicht gelesen werden")
+    rows = importer.parse(importer.decode(raw))
+    headers = rows[0]
+    mapping = data.mapping if data.mapping is not None else importer.guess_mapping(headers)
+    clean = {}
+    for k, v in (mapping or {}).items():
+        if k not in importer.FIELDS:
+            raise HTTPException(400, f"Unbekanntes Feld: {k}")
+        if v is not None and v != "" and int(v) >= 0:
+            if int(v) >= len(headers):
+                raise HTTPException(400, "Spaltennummer außerhalb der Tabelle")
+            clean[k] = int(v)
+    if "name" not in clean and "hostname" not in clean:
+        checked = []
+    else:
+        if data.default_site_id:
+            get_or_404(conn, "site", data.default_site_id)
+        checked = importer.check(conn, rows, clean, data.create_types, data.create_sites, data.default_site_id)
+    return headers, rows, clean, checked
+
+
+@router.post("/devices/import/preview")
+def import_preview(data: ImportIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    """CSV prüfen, ohne etwas zu speichern: Spalten, Zuordnung (geraten oder vorgegeben), Ergebnis je Zeile."""
+    from .. import importer
+    headers, rows, mapping, checked = _import_prepare(data, conn)
+    return {"headers": headers, "sample": rows[1:4], "mapping": mapping,
+            "fields": {k: v[0] for k, v in importer.FIELDS.items()},
+            "rows": checked[:500], "total": len(rows) - 1,
+            "counts": {a: sum(1 for r in checked if r["action"] == a) for a in ("create", "skip", "error")},
+            "needs_name": not checked and len(rows) > 1}
+
+
+@router.post("/devices/import")
+def import_devices(data: ImportIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    from .. import importer
+    _, _, mapping, checked = _import_prepare(data, conn)
+    if not checked:
+        raise HTTPException(400, "Bitte mindestens die Spalte „Name“ zuordnen")
+    result = importer.run(conn, admin, checked)
+    audit(conn, admin["id"], "devices_imported", "devices",
+          f"CSV-Import: {result['created']} angelegt, {result['skipped']} übersprungen, {result['errors']} fehlerhaft")
+    return result
+
+
 def device_detail(conn, device_id: int) -> dict:
     r = conn.execute(SELECT + " WHERE d.id = ?", (device_id,)).fetchone()
     if not r:

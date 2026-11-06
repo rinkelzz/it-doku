@@ -4,8 +4,9 @@ import sqlite3
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 
-from ..db import get_db
+from ..db import audit, get_db
 from ..doku import DOC_ACTIONS, KINDS, due_items
 from ..security import current_user
 from ..timeutil import local_iso
@@ -98,3 +99,15 @@ def search(q: str = Query(..., min_length=1, max_length=100), user=Depends(curre
         "SELECT id, name, address FROM sites WHERE name LIKE ? OR address LIKE ? OR isp_customer_no LIKE ? OR isp_public_ip LIKE ? LIMIT 8",
         [like] * 4)]
     return out
+
+
+@router.get("/handbook.pdf")
+def handbook(site_id: Optional[int] = None, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    """Notfall-Handbuch als PDF (ohne Passwörter): Notfall-Kontakte, Internet, Netze, IP-Listen, Netzwerkplan."""
+    from ..handbook import build
+    from ..timeutil import today_local
+    pdf = build(conn, site_id)
+    audit(conn, user["id"], "handbook_pdf", "handbook", f"Notfall-Handbuch erstellt{' (ein Standort)' if site_id else ''}")
+    name = f"notfall-handbuch-{today_local().isoformat()}.pdf"
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
