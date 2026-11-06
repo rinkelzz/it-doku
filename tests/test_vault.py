@@ -126,7 +126,7 @@ def test_credentials_encrypted_and_revealed(admin):
     dev_type = admin.get("/api/v1/device-types").json()[0]["id"]
     dev = admin.post("/api/v1/devices", json={"name": "Router", "type_id": dev_type}).json()
     body = {"title": "FRITZ!Box", "username": "admin", "url": "http://192.168.10.1", "owner_type": "device", "owner_id": dev["id"],
-            "password": "Sup3r-Geheim!42", "notes": "Wiederherstellungscode XYZ", "totp": "JBSWY3DPEHPK3PXP"}
+            "password": "Sup3r-Geheim!42", "notes": "Wiederherstellungscode XYZ-7Q4K-PLM2", "totp": "JBSWY3DPEHPK3PXP"}
     assert admin.post("/api/v1/credentials", json=body).status_code == 423  # Tresor nicht eingerichtet/offen
     setup_vault(admin)
     c = admin.post("/api/v1/credentials", json=body).json()
@@ -136,7 +136,7 @@ def test_credentials_encrypted_and_revealed(admin):
     admin.get("/api/v1/vault/status")
     raw = open(settings.db_path, "rb").read() + (open(str(settings.db_path) + "-wal", "rb").read()
                                                   if os.path.exists(str(settings.db_path) + "-wal") else b"")
-    assert b"Sup3r-Geheim" not in raw and b"XYZ" not in raw and b"JBSWY3DP" not in raw
+    assert b"Sup3r-Geheim" not in raw and b"Wiederherstellungscode" not in raw and b"XYZ-7Q4K" not in raw and b"JBSWY3DP" not in raw
     r = admin.post(f"/api/v1/credentials/{c['id']}/reveal", json={"field": "password", "purpose": "copy"})
     assert r.json() == {"value": "Sup3r-Geheim!42"}
     code = admin.post(f"/api/v1/credentials/{c['id']}/reveal", json={"field": "totp"}).json()
