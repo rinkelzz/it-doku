@@ -467,7 +467,7 @@ async function loadNetwork() {
   try { nets = await api("networks" + (multiSite() ? "?site_id=" + siteId : "")); } catch (e) { $("netErr").textContent = e.message; return; }
   if (!nets.some(n => n.id === doc.net)) doc.net = (nets[0] || {}).id || 0;
   $("netGrid").innerHTML = nets.map(n => `<div class="net ${n.id === doc.net ? "on" : ""}" data-net="${n.id}">
-      <h3><span>${esc(n.name)}</span><span class="row" style="gap:6px">${n.scan ? '<span class="tag" title="wird beim Netzwerk-Scan geprüft">🔍</span>' : ""}${n.vlan != null ? `<span class="tag">VLAN ${n.vlan}</span>` : ""}
+      <h3><span>${esc(n.name)}</span><span class="row" style="gap:6px">${n.scan ? `<span class="tag" title="${n.scan_agent_name ? `wird vor Ort vom Agent „${esc(n.scan_agent_name)}“ gescannt` : "wird beim Netzwerk-Scan geprüft"}">🔍${n.scan_agent_name ? " 🛰️ " + esc(n.scan_agent_name) : ""}</span>` : ""}${n.vlan != null ? `<span class="tag">VLAN ${n.vlan}</span>` : ""}
         ${isAdmin() ? `<button class="mini" data-netedit="${n.id}" title="Netz bearbeiten">✎</button>` : ""}</span></h3>
       <dl class="kv"><dt>Netz</dt><dd class="mono">${esc(n.cidr || "–")}</dd><dt>Gateway</dt><dd class="mono">${esc(n.gateway || "–")}</dd>
         <dt>DHCP</dt><dd class="mono">${esc(dhcpRange(n.dhcp_from, n.dhcp_to))}</dd><dt>DNS</dt><dd class="mono">${esc(n.dns || "–")}</dd></dl>
@@ -518,7 +518,8 @@ $("ipQ").oninput = debounce(() => loadNetwork());
 $("netSite").onchange = () => { setSite($("netSite").value); doc.net = 0; loadRef(false).then(loadNetwork); };
 $("netNew").onclick = () => networkForm(null);
 
-function networkForm(n) {
+async function networkForm(n) {
+  const scanAgents = isAdmin() ? await api("agents").then(r => r.agents.filter(a => a.platform !== "windows")).catch(() => []) : [];
   const siteId = doc.site || (doc.sites[0] || {}).id;
   const fields = [
     { k: "name", label: "Name", ph: "z. B. Praxis-LAN", max: 100 },
@@ -531,6 +532,8 @@ function networkForm(n) {
     ...(multiSite() ? [{ k: "site_id", label: "Standort", type: "select", int: true, options: siteOptions(false) }] : []),
     { k: "notes", label: "Notizen", type: "textarea", span2: true, ph: "z. B. Gäste-WLAN isoliert, WLAN-Name, Firewall-Regeln" },
     { k: "scan", label: "beim Netzwerk-Scan berücksichtigen (IPv4, höchstens /22)", type: "check", span2: true },
+    { k: "scan_agent_id", label: "Gescannt von", type: "select", int: true, span2: true,
+      options: [["", "dieser NAS (Netz ist von hier erreichbar)"]].concat(scanAgents.map(a => [a.id, `🛰️ Agent „${a.name}“ vor Ort${a.os_name ? " · " + a.os_name : ""}`])) },
   ];
   openForm({ title: n ? `${n.name} bearbeiten` : "Neues Netz", fields, values: n ? { ...n } : { site_id: siteId },
     hint: "Bereits erfasste IP-Adressen, die ins Netz passen, werden beim Anlegen automatisch zugeordnet.",
@@ -1012,19 +1015,23 @@ async function loadScan() {
     <div class="toolbar"><h2>🔍 Netzwerk-Scan</h2><div class="row"><button data-back>‹ Zurück zum Netzwerk</button>
       <button class="primary" data-start ${st.running || !on.length ? "disabled" : ""}>${st.running ? "Scan läuft …" : "Jetzt scannen"}</button></div></div>
     ${progress}
-    <div class="scanbar"><span class="small">${run ? `Letzter Scan: ${fmtDT(run.finished_at_local)} (${run.trigger === "nightly" ? "nachts" : "von Hand"}) · ${esc(run.networks)} ·
+    <div class="scanbar"><span class="small">${run ? `Letzter Scan: ${fmtDT(run.finished_at_local)} (${run.trigger === "nightly" ? "nachts" : run.trigger === "agent" ? "vom Agent" : "von Hand"}) · ${esc(run.networks)} ·
         ${run.hosts_up} von ${run.addresses} Adressen online · Dauer ${dur} s${run.error ? ` · <span class="err">Fehler: ${esc(run.error)}</span>` : ""}` : "Noch kein Scan gelaufen."}</span>
       <label class="inline small" style="margin-left:auto"><input type="checkbox" data-nightly ${s.nightly ? "checked" : ""}> jede Nacht um
         <select data-hour>${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === s.hour ? "selected" : ""}>${String(h).padStart(2, "0")}:00</option>`).join("")}</select> scannen</label></div>
-    <p class="muted small" style="margin:8px 0 0">${on.length ? `Gescannt werden: ${on.map(n => `<b>${esc(n.name)}</b>`).join(", ")}` : "<b>Noch kein Netz zum Scannen markiert.</b>"}
+    <p class="muted small" style="margin:8px 0 0">${on.length ? `Gescannt werden: ${on.map(n => `<b>${esc(n.name)}</b>${n.agent ? ` <span class="tag" title="scannt vor Ort und meldet per HTTPS">🛰️ ${esc(n.agent)}</span>` : ""}${
+        n.requested ? ' <span class="tag warn" title="Der Agent fragt stündlich nach und scannt dann">angefordert</span>' : ""}${
+        n.last_scan ? ` <span class="muted">(${fmtDT(n.last_scan)})</span>` : ""}`).join(", ")}` : "<b>Noch kein Netz zum Scannen markiert.</b>"}
       ${off.length ? ` · nicht gescannt: ${off.map(n => esc(n.name) + (n.problem && n.scan ? ` (${esc(n.problem)})` : "")).join(", ")}` : ""}.
       Den Haken „beim Netzwerk-Scan berücksichtigen“ setzt du am Netz (✎). Geprüft werden gängige Ports (Web, Windows-Freigaben, SSH, Drucker, RDP …);
-      MAC-Adressen kommen aus der ARP-Tabelle der NAS (nur Netze, in denen die NAS selbst hängt), Namen aus DNS und NetBIOS.</p>
+      MAC-Adressen kommen aus der ARP-Tabelle der NAS (nur Netze, in denen die NAS selbst hängt), Namen aus DNS und NetBIOS.
+      Entfernte Standorte ohne VPN scannt ein <b>Agent vor Ort</b> (am Netz unter „Gescannt von“ zuordnen) – er fragt stündlich nach,
+      „Jetzt scannen“ fordert den Scan dort an.</p>
   </section>
   ${run ? `<section class="card grp">
     <h3>🆕 Neu gefunden <span class="tag ${r.new.length ? "warn" : ""}">${r.new.length}</span></h3>
     ${r.new.length ? `<div class="scroll"><table id="scNew"><thead><tr><th><input type="checkbox" data-all checked></th><th>IP</th><th>Name</th><th>MAC · Hersteller</th><th>Offene Ports</th><th>Name in der Doku</th><th>übernehmen als</th></tr></thead><tbody>
-      ${r.new.map((h, i) => `<tr data-i="${i}"><td><input type="checkbox" data-pick ${h.vendor === "zufällige MAC" ? "" : "checked"}></td><td class="mono">${esc(h.ip)}</td>
+      ${r.new.map((h, i) => `<tr data-i="${i}"><td><input type="checkbox" data-pick ${h.vendor === "zufällige MAC" ? "" : "checked"}></td><td class="mono">${esc(h.ip)}${on.length > 1 && h.network_name ? `<small class="muted" style="display:block;font-family:inherit">${esc(h.network_name)}</small>` : ""}</td>
         <td class="mono">${esc(h.hostname || "–")}</td><td class="mono">${esc(h.mac || "–")}${h.vendor ? ` <span class="muted">· ${esc(h.vendor)}</span>` : ""}</td>
         <td class="ports">${esc(h.port_names.join(" · ") || "–")}</td><td><input data-name value="${esc(h.hostname || h.ip)}" style="width:150px"></td><td>${typeSel(h.type_id)}</td></tr>`).join("")}
       </tbody></table></div>

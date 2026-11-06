@@ -21,6 +21,10 @@ def _stale_days(conn) -> int:
         return 30
 
 
+def _last_scan(conn, n):
+    return local_iso(n["last_scan_at"]) if n["last_scan_at"] else None
+
+
 @router.get("")
 def overview(admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
     res = netscan.results(conn, _stale_days(conn))
@@ -30,7 +34,10 @@ def overview(admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_d
     res["status"] = netscan.status()
     res["settings"] = {"nightly": get_setting(conn, "scan_nightly") == "1", "hour": int(get_setting(conn, "scan_hour") or 3),
                        "stale_days": _stale_days(conn)}
+    agent_names = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM agents")}
     res["networks"] = [{"id": r["id"], "name": r["name"], "cidr": r["cidr"], "scan": bool(r["scan"]),
+                        "agent": agent_names.get(r["scan_agent_id"]), "requested": bool(r["scan_requested"]),
+                        "last_scan": _last_scan(conn, r),
                         "problem": netscan.check_network(r["cidr"]) if r["cidr"] else "Kein Netz (CIDR) eingetragen"}
                        for r in conn.execute("SELECT * FROM networks ORDER BY sort, id")]
     return res
@@ -38,13 +45,19 @@ def overview(admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_d
 
 @router.post("/start")
 def start(admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
-    if not netscan.targets(conn):
+    remote = conn.execute("SELECT id, name FROM networks WHERE scan = 1 AND scan_agent_id IS NOT NULL").fetchall()
+    local = netscan.targets(conn)
+    if not local and not remote:
         raise HTTPException(400, "Kein Netz zum Scannen markiert – im Netz „scannen“ anhaken (IPv4, höchstens /22)")
-    try:
-        netscan.start_background("manual", admin["id"])
-    except RuntimeError as e:
-        raise HTTPException(409, str(e))
-    return {"ok": True}
+    if remote:
+        # Agenten fragen stündlich nach – angeforderte Netze scannen sie beim nächsten Kontakt
+        conn.execute("UPDATE networks SET scan_requested = 1 WHERE scan = 1 AND scan_agent_id IS NOT NULL")
+    if local:
+        try:
+            netscan.start_background("manual", admin["id"])
+        except RuntimeError as e:
+            raise HTTPException(409, str(e))
+    return {"ok": True, "local": bool(local), "requested": [r["name"] for r in remote]}
 
 
 @router.get("/status")

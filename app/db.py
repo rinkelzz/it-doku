@@ -350,6 +350,21 @@ CREATE INDEX IF NOT EXISTS idx_device_urls_device ON device_urls(device_id);
 """)
 
 
+def _m8_fernscan(conn: sqlite3.Connection) -> None:
+    """Version 0.8: Netze, die ein Agent vor Ort scannt (entfernte Standorte ohne VPN)."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(networks)")}
+    if "scan_agent_id" not in cols:
+        conn.execute("ALTER TABLE networks ADD COLUMN scan_agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL")
+    if "scan_requested" not in cols:
+        conn.execute("ALTER TABLE networks ADD COLUMN scan_requested INTEGER NOT NULL DEFAULT 0")
+    if "last_scan_at" not in cols:
+        conn.execute("ALTER TABLE networks ADD COLUMN last_scan_at TEXT")
+    if "agent_id" not in {r[1] for r in conn.execute("PRAGMA table_info(scan_runs)")}:
+        conn.execute("ALTER TABLE scan_runs ADD COLUMN agent_id INTEGER")
+    if "last_contact_at" not in {r[1] for r in conn.execute("PRAGMA table_info(agents)")}:
+        conn.execute("ALTER TABLE agents ADD COLUMN last_contact_at TEXT")
+
+
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_stammdaten,
@@ -358,6 +373,7 @@ MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     5: _m5_scan,
     6: _m6_agenten,
     7: _m7_weburls,
+    8: _m8_fernscan,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 

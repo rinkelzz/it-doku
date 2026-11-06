@@ -59,6 +59,9 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
 - Unverschlüsseltes `http://` muss beim Einrichten ausdrücklich bestätigt werden – nur im VPN/LAN verwenden.
   Zertifikatsprüfung abschalten (`--insecure`) nur bei selbstsignierten Zertifikaten im eigenen Netz.
 - Die Skripte unter `/agent/…` enthalten keine Geheimnisse und sind ohne Anmeldung abrufbar.
+- **Scan vor Ort:** Ein Agent scannt nur Netze, die ihm in der App ausdrücklich zugeordnet sind, und darf nur für diese
+  Ergebnisse abliefern; Adressen außerhalb des Netzes werden verworfen. Wird ein Agent gelöscht, wird das Scannen seiner
+  Netze ausgeschaltet – sonst würde die NAS ein fremdes Netz mit womöglich gleichen Adressen in ihrem eigenen LAN suchen.
 
 ## Tresor
 

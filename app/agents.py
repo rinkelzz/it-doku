@@ -13,6 +13,8 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from fastapi import HTTPException
+
 from .db import get_setting
 from .doku import insert_row, is_placeholder_name, log, network_for
 from .timeutil import now_utc, now_utc_str, parse_utc, to_utc_str
@@ -397,3 +399,68 @@ def store_report(conn: sqlite3.Connection, agent: sqlite3.Row, rep: Dict[str, An
         (device_id, rep["platform"] or agent["platform"], now_utc_str(), client_ip[:60], rep["agent_version"], rep["hostname"],
          os_label(rep), json.dumps(rep, ensure_ascii=False, separators=(",", ":")), agent["id"]))
     return {"device_id": device_id, "created": created}
+
+
+# --- Scan vor Ort (Agent als Scanner für entfernte Netze) ---------------------
+
+DUE_HOURS = 20
+
+
+def report_due(agent: sqlite3.Row) -> bool:
+    if not agent["last_report_at"]:
+        return True
+    try:
+        last = parse_utc(agent["last_report_at"])
+    except ValueError:
+        return True
+    return not last or now_utc() - last > timedelta(hours=DUE_HOURS)
+
+
+def scan_due(conn: sqlite3.Connection, agent: sqlite3.Row) -> List[Dict[str, Any]]:
+    """Netze dieses Agenten, die jetzt dran sind: angefordert oder letzter Lauf älter als 20 Stunden."""
+    from .netscan import check_network
+    out = []
+    limit = to_utc_str(now_utc() - timedelta(hours=DUE_HOURS))
+    for n in conn.execute("SELECT * FROM networks WHERE scan = 1 AND scan_agent_id = ? AND cidr != ''", (agent["id"],)):
+        if check_network(n["cidr"]):
+            continue
+        last = n["last_scan_at"]
+        if n["scan_requested"] or not last or last < limit:
+            out.append({"network_id": n["id"], "name": n["name"], "cidr": n["cidr"]})
+    return out
+
+
+def store_scan(conn: sqlite3.Connection, agent: sqlite3.Row, raw: Dict[str, Any]) -> int:
+    from . import netscan
+    nets, hosts, addresses = [], [], 0
+    for entry in raw["networks"][:32]:
+        entry = _dict(entry)
+        nid = _int(entry.get("network_id"), 1)
+        n = conn.execute("SELECT * FROM networks WHERE id = ? AND scan_agent_id = ?", (nid, agent["id"])).fetchone() if nid else None
+        if not n:
+            continue  # nicht (mehr) diesem Agenten zugeordnet
+        try:
+            net = ipaddress.ip_network(n["cidr"])
+        except ValueError:
+            continue
+        nets.append(n)
+        addresses += max(0, net.num_addresses - 2)
+        seen = set()
+        for h in _list(entry.get("hosts"), netscan.MAX_HOSTS + 2):
+            h = _dict(h)
+            ip = _ip(h.get("ip"))
+            if not ip or ip in seen or ipaddress.ip_address(ip) not in net:
+                continue
+            seen.add(ip)
+            ports = sorted({p for p in (_int(x, 1, 65535) for x in _list(h.get("ports"), 64)) if p})
+            hosts.append({"network_id": n["id"], "ip": ip, "mac": _mac(h.get("mac")), "hostname": _s(h.get("hostname"), 100),
+                          "ports": ports})
+    if not nets:
+        raise HTTPException(400, "Diesem Agenten ist kein Netz zum Scannen zugeordnet")
+    cur = conn.execute("INSERT INTO scan_runs(trigger, started_at, networks, addresses, agent_id) VALUES ('agent', ?, ?, ?, ?)",
+                       (_date(raw.get("started_at")) or now_utc_str(), ", ".join(n["name"] for n in nets), addresses, agent["id"]))
+    run_id = cur.lastrowid
+    netscan.store_hosts(conn, run_id, hosts, [n["id"] for n in nets])
+    conn.execute(f"UPDATE networks SET scan_requested = 0 WHERE id IN ({','.join('?' * len(nets))})", [n["id"] for n in nets])
+    netscan.prune_runs(conn)
+    return run_id

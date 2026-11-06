@@ -187,10 +187,12 @@ class NetworkIn(BaseModel):
     notes: Optional[str] = LONG
     sort: Optional[int] = None
     scan: Optional[bool] = Field(None, description="beim Netzwerk-Scan berücksichtigen (IPv4, höchstens /22)")
+    scan_agent_id: Optional[int] = Field(None, description="Agent, der das Netz vor Ort scannt (leer = die NAS selbst)")
 
 
 NET_LABELS = {"name": "Name", "vlan": "VLAN", "cidr": "Netz", "gateway": "Gateway", "dhcp_from": "DHCP von",
-              "dhcp_to": "DHCP bis", "dns": "DNS", "notes": "Notizen", "site_id": "Standort", "scan": "Scannen"}
+              "dhcp_to": "DHCP bis", "dns": "DNS", "notes": "Notizen", "site_id": "Standort", "scan": "Scannen",
+              "scan_agent_id": "Gescannt von"}
 
 
 def _check_network(conn, values: dict) -> dict:
@@ -201,6 +203,8 @@ def _check_network(conn, values: dict) -> dict:
             values[k] = parse_ip(values[k])
     if values.get("site_id"):
         get_or_404(conn, "site", values["site_id"])
+    if values.get("scan_agent_id") and not conn.execute("SELECT 1 FROM agents WHERE id = ?", (values["scan_agent_id"],)).fetchone():
+        raise HTTPException(404, "Agent nicht gefunden")
     if values.get("scan"):
         from ..netscan import check_network
         cidr = values.get("cidr") if "cidr" in values else (conn.execute("SELECT cidr FROM networks WHERE id = ?", (values.get("_id"),)).fetchone() or [""])[0]
@@ -214,6 +218,10 @@ def _check_network(conn, values: dict) -> dict:
 def network_out(conn, r) -> dict:
     out = dict(r)
     out["scan"] = bool(r["scan"]) if "scan" in r.keys() else False
+    out["scan_requested"] = bool(r["scan_requested"]) if "scan_requested" in r.keys() else False
+    a = conn.execute("SELECT name FROM agents WHERE id = ?", (r["scan_agent_id"],)).fetchone() \
+        if "scan_agent_id" in r.keys() and r["scan_agent_id"] else None
+    out["scan_agent_name"] = a["name"] if a else None
     out["used"] = conn.execute("SELECT COUNT(*) FROM ip_addresses WHERE network_id = ?", (r["id"],)).fetchone()[0]
     out["size"] = None
     if r["cidr"]:
@@ -239,6 +247,8 @@ def create_network(data: NetworkIn, admin=Depends(admin_user), conn: sqlite3.Con
     values = _check_network(conn, strip_strings(data.model_dump(exclude_unset=True)))
     if not values.get("name"):
         raise HTTPException(400, "Bitte einen Namen angeben")
+    if values.get("scan_agent_id"):
+        values["scan_requested"] = 1
     nid = insert_row(conn, "networks", values)
     # vorhandene IPs ohne Netz, die hineinpassen, gleich zuordnen
     if values.get("cidr"):
@@ -259,7 +269,15 @@ def update_network(network_id: int, data: NetworkIn, admin=Depends(admin_user), 
     values = _check_network(conn, {**strip_strings(data.model_dump(exclude_unset=True)), "_id": network_id})
     if "name" in values and not values["name"]:
         raise HTTPException(400, "Der Name darf nicht leer sein")
-    text = diff(old, values, NET_LABELS)
+    shown_old, shown_new = dict(old), dict(values)
+    if "scan_agent_id" in values:
+        def agent_name(i):
+            r = conn.execute("SELECT name FROM agents WHERE id = ?", (i,)).fetchone() if i else None
+            return f"Agent „{r['name']}“" if r else "NAS"
+        shown_old["scan_agent_id"], shown_new["scan_agent_id"] = agent_name(old["scan_agent_id"]), agent_name(values["scan_agent_id"])
+    text = diff(shown_old, shown_new, NET_LABELS)
+    if "scan_agent_id" in values and values["scan_agent_id"] != old["scan_agent_id"] and values["scan_agent_id"]:
+        values["scan_requested"] = 1  # neuer Scanner: beim nächsten Kontakt gleich scannen
     update_row(conn, "networks", network_id, values)
     if text:
         log(conn, admin, "doc_updated", "network", network_id, values.get("name") or old["name"], text)

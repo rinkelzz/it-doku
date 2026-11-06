@@ -47,6 +47,21 @@ async def _read_body(request: Request) -> bytes:
 
 @router.post("/api/agent/v1/report", include_in_schema=False)
 async def report(request: Request, conn: sqlite3.Connection = Depends(get_db)):
+    agent = _auth_agent(request, conn)
+    ip = request.client.host if request.client else ""
+    body = await _read_body(request)
+    try:
+        raw = json.loads(body.decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError):
+        raise HTTPException(400, "Bericht ist kein gültiges JSON")
+    if not isinstance(raw, dict):
+        raise HTTPException(400, "Bericht ist kein JSON-Objekt")
+    rep = agents.sanitize(raw)
+    res = agents.store_report(conn, agent, rep, ip)
+    return {"ok": True, "device_id": res["device_id"], "created": res["created"]}
+
+
+def _auth_agent(request: Request, conn) -> sqlite3.Row:
     ip = request.client.host if request.client else ""
     key = "agent:" + ip
     if too_many_attempts(key, MAX_FAILS_AGENT):
@@ -60,16 +75,35 @@ async def report(request: Request, conn: sqlite3.Connection = Depends(get_db)):
     clear_failures(key)
     if agent["disabled"]:
         raise HTTPException(403, "Dieser Agent ist gesperrt")
+    return agent
+
+
+@router.get("/api/agent/v1/config", include_in_schema=False)
+def agent_config(request: Request, conn: sqlite3.Connection = Depends(get_db)):
+    """Der Agent fragt stündlich: Bericht fällig? Welche Netze soll er scannen?"""
+    agent = _auth_agent(request, conn)
+    conn.execute("UPDATE agents SET last_contact_at = ? WHERE id = ?", (now_utc_str(), agent["id"]))
+    from .. import netscan
+    return {"report_due": agents.report_due(agent), "scan": agents.scan_due(conn, agent),
+            "quick_ports": netscan.QUICK_PORTS, "ports": netscan.ALL_PORTS, "max_hosts": netscan.MAX_HOSTS}
+
+
+@router.post("/api/agent/v1/scan", include_in_schema=False)
+async def agent_scan(request: Request, conn: sqlite3.Connection = Depends(get_db)):
+    """Scan-Ergebnis eines Agenten für die ihm zugeordneten Netze."""
+    agent = _auth_agent(request, conn)
     body = await _read_body(request)
     try:
         raw = json.loads(body.decode("utf-8-sig"))
     except (UnicodeDecodeError, ValueError):
-        raise HTTPException(400, "Bericht ist kein gültiges JSON")
-    if not isinstance(raw, dict):
-        raise HTTPException(400, "Bericht ist kein JSON-Objekt")
-    rep = agents.sanitize(raw)
-    res = agents.store_report(conn, agent, rep, ip)
-    return {"ok": True, "device_id": res["device_id"], "created": res["created"]}
+        raise HTTPException(400, "Kein gültiges JSON")
+    if not isinstance(raw, dict) or not isinstance(raw.get("networks"), list):
+        raise HTTPException(400, "Feld „networks“ fehlt")
+    run_id = agents.store_scan(conn, agent, raw)
+    r = conn.execute("SELECT * FROM scan_runs WHERE id = ?", (run_id,)).fetchone()
+    audit(conn, None, "scan_run", "scan", f"Netzwerk-Scan (Agent „{agent['name']}“, {r['networks']}): "
+                                          f"{r['hosts_up']} von {r['addresses']} Adressen online")
+    return {"ok": True, "run_id": run_id, "hosts_up": r["hosts_up"]}
 
 
 @router.get("/agent/{name}", include_in_schema=False)
@@ -90,7 +124,8 @@ def _agent_out(conn, r, days: int) -> dict:
     out = {k: r[k] for k in ("id", "name", "platform", "device_id", "token_hint", "last_ip", "agent_version", "hostname",
                              "os_name", "last_report_at", "created_at")}
     out["disabled"] = bool(r["disabled"])
-    out["platform_label"] = agents.PLATFORMS.get(r["platform"], "")
+    out["platform_label"] = "Synology" if (r["os_name"] or "").startswith("DSM ") else agents.PLATFORMS.get(r["platform"], "")
+    out["scans"] = [n["name"] for n in conn.execute("SELECT name FROM networks WHERE scan_agent_id = ? AND scan = 1", (r["id"],))]
     out["last_report_local"] = local_iso(r["last_report_at"]) if r["last_report_at"] else None
     out["stale"] = not r["disabled"] and agents.is_stale(r["last_report_at"], days)
     out["device_name"] = r["device_name"] if "device_name" in r.keys() else None
@@ -165,7 +200,7 @@ def _check_device(conn, device_id: Optional[int], agent_id: Optional[int] = None
 @router.post("/api/v1/agents", status_code=201)
 def create_agent(data: AgentIn, request: Request, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
     _check_device(conn, data.device_id)
-    platform = data.platform if data.platform in agents.PLATFORMS else ""
+    platform = data.platform if data.platform in agents.PLATFORMS else ("linux" if data.platform == "synology" else "")
     token = agents.new_token()
     cur = conn.execute(
         "INSERT INTO agents(name, platform, device_id, token_hash, token_hint, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -214,6 +249,8 @@ def update_agent(agent_id: int, data: AgentPatch, admin=Depends(admin_user), con
 @router.delete("/api/v1/agents/{agent_id}")
 def delete_agent(agent_id: int, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
     a = _get(conn, agent_id)
+    # Netze, die dieser Agent gescannt hat, nicht stillschweigend von der NAS aus scannen (anderes Netz, gleiche Adressen?)
+    conn.execute("UPDATE networks SET scan = 0, scan_requested = 0 WHERE scan_agent_id = ?", (agent_id,))
     conn.execute("DELETE FROM agents WHERE id = ?", (agent_id,))
     audit(conn, admin["id"], "agent_deleted", f"agent:{agent_id}", f"{a['name']} (das Gerät bleibt in der Doku)")
     return {"ok": True}

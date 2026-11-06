@@ -11,7 +11,7 @@ Lizenzen, Netzwerkplan und Zugangsdaten (verschlüsselt im Tresor). Sie läuft a
 eigenem Fenster in DSM. Die Daten bleiben beim Kunden; der IT-Dienstleister und eine Vertrauensperson beim Kunden
 haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 
-> **Stand 0.7:** Geräte, Netzwerk mit Netzwerk-Scan, Agent für Server und PCs (Windows, Linux, macOS), Lizenzen,
+> **Stand 0.8:** Geräte, Netzwerk mit Netzwerk-Scan, Agent für Server und PCs (Windows, Linux, macOS), Lizenzen,
 > Ansprechpartner, Zugangsdaten im verschlüsselten Tresor, Fristen-Mail, Notfall-Handbuch als PDF und CSV-Import –
 > siehe [Fahrplan](#fahrplan).
 
@@ -69,8 +69,8 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 | ![Geräte](docs/screenshots/geraete.png) | ![Lizenzen](docs/screenshots/lizenzen.png) | ![Kontakte](docs/screenshots/kontakte.png) |
 | **CSV-Import** | **Fristen-Mail** | **Netzwerk-Scan** |
 | ![CSV-Import](docs/screenshots/import.png) | ![Fristen-Mail](docs/screenshots/fristen-mail.png) | ![Netzwerk-Scan](docs/screenshots/netzwerk-scan.png) |
-| **Web-Oberflächen am Gerät** | **IP-Liste mit Links** | |
-| ![Web-Oberflächen](docs/screenshots/geraet-web.png) | ![IP-Liste mit Links](docs/screenshots/netzwerk-links.png) | |
+| **Web-Oberflächen am Gerät** | **IP-Liste mit Links** | **Scan durch Agent vor Ort** |
+| ![Web-Oberflächen](docs/screenshots/geraet-web.png) | ![IP-Liste mit Links](docs/screenshots/netzwerk-links.png) | ![Scan durch Agent](docs/screenshots/fernscan.png) |
 | **Vom Agent gemeldet** | **Agenten** | **Agent einrichten** |
 | ![Vom Agent gemeldet](docs/screenshots/agent-geraet.png) | ![Agenten](docs/screenshots/agenten.png) | ![Agent einrichten](docs/screenshots/agent-einrichten.png) |
 | **Suche** | **Stammdaten** | **Handy** |
@@ -138,6 +138,16 @@ Für Rechner, die der Netzwerk-Scan nicht sieht (Cloud-Server, Filiale, Homeoffi
 interessiert: Ein kleiner Agent schickt **täglich und nach jedem Start** einen Bericht per HTTPS an die
 IT-Dokumentation. Am Server muss **kein Port offen** sein – der Agent meldet sich, nicht umgekehrt.
 
+**Synology als Agent:** Auch eine entfernte Synology kann Agent sein (per SSH einrichten, Zeitplan im DSM-Aufgabenplaner –
+den genauen Eintrag zeigt der Einrichtungsbefehl). Sie meldet Modell, Seriennummer, DSM-Version, Volumes und Pakete.
+
+**Netz vor Ort scannen (Standort ohne VPN):** Linux-, macOS- und Synology-Agenten scannen auf Wunsch ihr eigenes Netz –
+mit demselben Verfahren wie der Scan auf der NAS, inklusive MAC-Adresse und Hersteller. Dazu das Netz (z. B.
+„Filial-LAN 192.168.50.0/24“) anlegen, „beim Netzwerk-Scan berücksichtigen“ anhaken und unter **Gescannt von** den
+Agenten wählen. Der Agent fragt stündlich nach: Er scannt einmal am Tag und sofort beim nächsten Nachfragen, wenn in der
+App „Jetzt scannen“ gedrückt wurde. Die Ergebnisse erscheinen im gewohnten **🔍 Scan** (neu, ergänzen, Abweichungen,
+zuletzt online). Agenten, die mit Version 1.0 eingerichtet wurden, einmal neu einrichten (Zeitplan wird stündlich).
+
 **Was gemeldet wird:** Rechnername, Betriebssystem mit Build, CPU, Arbeitsspeicher, Hersteller/Modell/Seriennummer,
 Laufzeit seit dem letzten Start, Datenträger mit freiem Platz, Netzwerkkarten mit IP/MAC, Gateway und DNS,
 installierte Software (durchsuchbar, als CSV), ausstehende Updates und ob ein Neustart nötig ist, Dienste (gestoppte
@@ -154,7 +164,8 @@ Befehl zum Einfügen:
 | System | Voraussetzung | Zeitplan |
 |---|---|---|
 | Windows 10/11, Server 2016+ | Windows PowerShell 5.1 (eingebaut), als Administrator | geplante Aufgabe „ITDoku Agent“ als SYSTEM |
-| Linux | Python 3.6+ (Standardbibliothek), sudo | systemd-Timer, sonst Cron |
+| Linux | Python 3.6+ (Standardbibliothek), sudo | systemd-Timer, sonst Cron (stündliche Nachfrage) |
+| Synology DSM 7 | per SSH, `sudo -i`; Python 3 ist bei DSM 7 dabei | Aufgabe im DSM-Aufgabenplaner (stündlich) |
 | macOS | Python 3 (Command Line Tools), sudo | LaunchDaemon |
 
 Entfernen: `sudo itdoku-agent --uninstall` bzw.
@@ -181,6 +192,7 @@ wöchentlichen **Fristen-Mail**.
 | **0.4** ✔ | Komfort: Fristen-Mail (wöchentlich + Stichtage), PDF „Notfall-Handbuch“ (Kontakte, Internet, Netzwerk), CSV-Import für Geräte mit Spaltenzuordnung |
 | **0.5** ✔ | Netzwerk-Scan: neue Geräte übernehmen, MAC/Hostname ergänzen, Abweichungen, „zuletzt online“, nachts automatisch |
 | **0.6** ✔ | Agent für Server und PCs (Windows, Linux, macOS): Hardware, System, Datenträger, Netzwerk, Software, Updates und Dienste per HTTPS, Gerät wird gefunden oder angelegt, Hinweis bei stillen Agenten |
+| **0.8** ✔ | Agent scannt das Netz vor Ort (entfernte Standorte ohne VPN), Synology DSM als Agent |
 | **0.7** ✔ | Web-Oberflächen pro Gerät (mehrere, mit Bezeichnung), anklickbarer Hostname, automatische Links aus dem Netzwerk-Scan |
 | später | Wiki-Seiten für Anleitungen, Verknüpfung mit dem Helpdesk aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) |
 
@@ -311,6 +323,8 @@ customer's own NAS, in its own DSM window with single sign-on. The user interfac
   by serial number or host name or created; silent agents are flagged on the overview and in the weekly mail.
 - 0.7: web interfaces per device (several, labelled), clickable host names in the IP list, automatic links from ports
   found by the network scan.
+- 0.8: agents scan their local network on behalf of the NAS (remote sites without VPN, incl. MAC/vendor);
+  Synology DSM can run the agent (scheduled via DSM Task Scheduler).
 - Planned: wiki pages, link to the Zeitmanagement helpdesk.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/it-doku/releases) →

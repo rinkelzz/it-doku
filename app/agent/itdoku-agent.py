@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""IT-Dokumentation – Agent für Linux und macOS.
+"""IT-Dokumentation – Agent für Linux, macOS und Synology DSM.
 
 Sammelt Hardware, System, Datenträger, Netzwerk, installierte Software, Updates und Dienste und schickt sie per HTTPS
-an die IT-Dokumentation. Braucht nur Python 3.6+ (Standardbibliothek), keine Zusatzpakete.
+an die IT-Dokumentation. Auf Wunsch scannt er außerdem das Netz vor Ort (entfernter Standort ohne VPN) – welche Netze,
+legt die IT-Dokumentation fest. Braucht nur Python 3.6+ (Standardbibliothek), keine Zusatzpakete.
 
   Einrichten (als root):   sudo python3 itdoku-agent.py --install --url https://doku.example.de --token itd_…
   Einmal melden:           sudo itdoku-agent --run
   Nur ansehen (nichts senden): python3 itdoku-agent.py --print
   Entfernen:               sudo itdoku-agent --uninstall
 
-Linux: systemd-Timer (täglich + 2 Minuten nach dem Start), ohne systemd ein Cron-Eintrag.
-macOS: LaunchDaemon (täglich + beim Start).
-Konfiguration: /etc/itdoku-agent.conf (nur für root lesbar).
+Der Zeitplan ruft den Agenten stündlich mit --auto auf: er fragt die IT-Dokumentation, ob ein Bericht fällig ist
+(einmal am Tag) und ob er ein Netz scannen soll (täglich oder wenn in der App „Jetzt scannen“ gedrückt wurde).
+Linux: systemd-Timer, ohne systemd ein Cron-Eintrag. macOS: LaunchDaemon.
+Synology DSM: Aufgabe im DSM-Aufgabenplaner (wird beim Einrichten erklärt), Dateien unter /usr/local/itdoku-agent.
+Konfiguration: /etc/itdoku-agent.conf bzw. /usr/local/itdoku-agent/agent.conf (nur für root lesbar).
 """
 import argparse
 import json
@@ -29,10 +32,12 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-VERSION = "1.0"
-CONF = "/etc/itdoku-agent.conf"
-BIN = "/usr/local/bin/itdoku-agent"
+VERSION = "1.1"
 IS_MAC = sys.platform == "darwin"
+IS_SYNO = os.path.exists("/etc.defaults/VERSION") and os.path.isdir("/usr/syno")
+SYNO_DIR = "/usr/local/itdoku-agent"
+CONF = SYNO_DIR + "/agent.conf" if IS_SYNO else "/etc/itdoku-agent.conf"
+BIN = SYNO_DIR + "/itdoku-agent.py" if IS_SYNO else "/usr/local/bin/itdoku-agent"
 SYSTEMD_SERVICE = "/etc/systemd/system/itdoku-agent.service"
 SYSTEMD_TIMER = "/etc/systemd/system/itdoku-agent.timer"
 CRON_FILE = "/etc/cron.d/itdoku-agent"
@@ -288,6 +293,63 @@ def linux_boot():
     return iso(int(m.group(1))) if m else ""
 
 
+# --- Synology DSM -------------------------------------------------------------
+
+def syno_kv(path):
+    out = {}
+    for line in read(path).splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            out[k.strip()] = v.strip().strip('"')
+    return out
+
+
+def syno_os():
+    v = syno_kv("/etc.defaults/VERSION")
+    ver = v.get("productversion") or "{}.{}".format(v.get("majorversion", ""), v.get("minorversion", ""))
+    build = v.get("buildnumber", "")
+    name = "DSM {}-{}".format(ver, build) if build else "DSM " + ver
+    if v.get("smallfixnumber") and v.get("smallfixnumber") != "0":
+        name += " Update " + v["smallfixnumber"]
+    return {"name": name, "version": ver, "build": build, "arch": platform.machine(), "kernel": platform.release()}
+
+
+def syno_hw():
+    hw = linux_hw()
+    info = syno_kv("/etc.defaults/synoinfo.conf")
+    model = read("/proc/sys/kernel/syno_hw_version") or info.get("upnpmodelname", "")
+    serial = read("/proc/sys/kernel/syno_serial")
+    if not serial:
+        out = run(["synogetkeyvalue", "/etc.defaults/synoinfo.conf", "serial"], 10).strip() if which("synogetkeyvalue") else ""
+        serial = out
+    hw.update({"manufacturer": "Synology", "model": model.replace("-j", ""), "serial": serial, "chassis": "server", "virtual": False})
+    return hw
+
+
+def syno_disks():
+    return [d for d in linux_disks() if d["mount"].startswith("/volume") and "/@" not in d["mount"]] or linux_disks()
+
+
+def syno_software():
+    out = []
+    try:
+        names = sorted(os.listdir("/var/packages"))
+    except OSError:
+        return out
+    for n in names:
+        info = syno_kv("/var/packages/{}/INFO".format(n))
+        if info:
+            out.append({"name": info.get("displayname") or info.get("package") or n, "version": info.get("version", ""),
+                        "publisher": info.get("maintainer", "")})
+    return out
+
+
+def syno_updates():
+    # DSM-Updates lassen sich ohne Anmeldung nicht zuverlässig abfragen – nur „Neustart nötig“ ist hier nicht bekannt
+    return {"pending": None, "items": [], "reboot_required": None, "last_installed": "",
+            "error": "Updates prüft DSM selbst (Systemsteuerung → Aktualisieren und Wiederherstellen)"}
+
+
 # --- macOS ------------------------------------------------------------------
 
 def mac_profiler(kind, timeout=120):
@@ -426,6 +488,10 @@ def collect():
         rep = {"platform": "macos", "os": part(mac_os, {}), "hardware": part(mac_hw, {}), "disks": part(mac_disks, []),
                "network": part(mac_net, {}), "software": part(mac_software, []), "updates": part(mac_updates, {}),
                "services": part(mac_services, []), "boot_time": part(mac_boot, "")}
+    elif IS_SYNO:
+        rep = {"platform": "linux", "os": part(syno_os, {}), "hardware": part(syno_hw, {}), "disks": part(syno_disks, []),
+               "network": part(linux_net, {}), "software": part(syno_software, []), "updates": part(syno_updates, {}),
+               "services": part(linux_services, []), "boot_time": part(linux_boot, "")}
     else:
         rep = {"platform": "linux", "os": part(linux_os, {}), "hardware": part(linux_hw, {}), "disks": part(linux_disks, []),
                "network": part(linux_net, {}), "software": part(linux_software, []), "updates": part(linux_updates, {}),
@@ -451,9 +517,10 @@ def check_url(url, allow_http):
     return url.rstrip("/")
 
 
-def send(conf, rep):
-    data = json.dumps(rep).encode("utf-8")
-    req = urllib.request.Request(conf["url"] + "/api/agent/v1/report", data=data, method="POST",
+def api(conf, path, body=None, tries=3):
+    """GET (body None) oder POST an die IT-Dokumentation; JSON zurück, None bei 404 (ältere App)."""
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    req = urllib.request.Request(conf["url"] + path, data=data, method="POST" if data is not None else "GET",
                                  headers={"Content-Type": "application/json", "Authorization": "Bearer " + conf["token"],
                                           "User-Agent": "itdoku-agent/" + VERSION})
     ctx = ssl.create_default_context()
@@ -461,19 +528,166 @@ def send(conf, rep):
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
     last = None
-    for attempt in range(3):
+    for attempt in range(tries):
         try:
-            with urllib.request.urlopen(req, timeout=60, context=ctx) as r:
+            with urllib.request.urlopen(req, timeout=120, context=ctx) as r:
                 return json.loads(r.read().decode("utf-8") or "{}")
         except urllib.error.HTTPError as e:
             msg = e.read().decode("utf-8", "replace")[:300]
-            if e.code in (401, 403, 413, 400):
+            if e.code == 404 and data is None:
+                return None
+            if e.code in (401, 403, 413, 400, 404):
                 sys.exit("Abgelehnt ({}): {}".format(e.code, msg))
             last = "HTTP {}: {}".format(e.code, msg)
         except (urllib.error.URLError, OSError) as e:
             last = str(e)
-        time.sleep(10 * (attempt + 1))
-    sys.exit("Senden fehlgeschlagen: " + str(last))
+        if attempt < tries - 1:
+            time.sleep(10 * (attempt + 1))
+    sys.exit("Verbindung fehlgeschlagen: " + str(last))
+
+
+def send(conf, rep):
+    return api(conf, "/api/agent/v1/report", rep)
+
+
+# --- Netzwerk-Scan vor Ort ---------------------------------------------------
+# Gleiches Verfahren wie der Scan der IT-Dokumentation auf der NAS: TCP-Verbindungsversuche (offen oder abgelehnt =
+# Gerät da), MAC aus der ARP-Tabelle, Namen aus DNS und NetBIOS. Kein Root nötig, keine Zusatzprogramme.
+
+def probe(ip, port, timeout):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    try:
+        err = s.connect_ex((ip, port))
+    except (socket.timeout, OSError):
+        return None
+    finally:
+        s.close()
+    if err == 0:
+        return "open"
+    if err in (111, 10061, 61):
+        return "closed"
+    return None
+
+
+def read_arp():
+    out = {}
+    if os.path.exists("/proc/net/arp"):
+        for line in read("/proc/net/arp").splitlines()[1:]:
+            f = line.split()
+            if len(f) >= 4 and f[2] == "0x2" and f[3] != "00:00:00:00:00:00":
+                out[f[0]] = f[3].upper()
+    else:
+        for m in re.finditer(r"\((\d+\.\d+\.\d+\.\d+)\) at ([0-9a-fA-F:]+)", run(["arp", "-an"], 30)):
+            mac = ":".join(x.zfill(2) for x in m.group(2).split(":"))
+            if len(mac) == 17:
+                out[m.group(1)] = mac.upper()
+    return out
+
+
+def dns_name(ip):
+    try:
+        name = socket.gethostbyaddr(ip)[0]
+    except (socket.herror, socket.gaierror, OSError, UnicodeError):
+        return ""
+    if name == ip:
+        return ""
+    for suffix in (".fritz.box", ".local", ".lan", ".home", ".localdomain", ".box"):
+        if name.lower().endswith(suffix):
+            name = name[: -len(suffix)]
+    return name[:100]
+
+
+def netbios_name(ip, timeout=0.8):
+    import random
+    import struct
+    tid = random.randint(0, 0xFFFF)
+    enc = b"".join(bytes([0x41 + (c >> 4), 0x41 + (c & 0x0F)]) for c in b"*" + b"\x00" * 15)
+    pkt = struct.pack(">HHHHHH", tid, 0, 1, 0, 0, 0) + b"\x20" + enc + b"\x00" + struct.pack(">HH", 0x21, 1)
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(timeout)
+    try:
+        s.sendto(pkt, (ip, 137))
+        data, _ = s.recvfrom(2048)
+    except (socket.timeout, OSError):
+        return ""
+    finally:
+        s.close()
+    try:
+        if struct.unpack(">H", data[:2])[0] != tid:
+            return ""
+        for i in range(data[56]):
+            off = 57 + i * 18
+            raw, suffix, flags = data[off:off + 15], data[off + 15], struct.unpack(">H", data[off + 16:off + 18])[0]
+            if suffix == 0x00 and not flags & 0x8000:
+                return raw.decode("ascii", "replace").strip()[:100]
+    except (IndexError, struct.error):
+        return ""
+    return ""
+
+
+def scan_networks(nets, quick_ports, all_ports, max_hosts=1022, quiet=False):
+    import ipaddress
+    from concurrent.futures import ThreadPoolExecutor
+    started = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    result = []
+    for n in nets:
+        try:
+            net = ipaddress.ip_network(n["cidr"], strict=False)
+        except ValueError:
+            continue
+        hosts = [str(h) for h in net.hosts()][:max_hosts]
+        if not quiet:
+            print("Scanne {} ({}, {} Adressen) …".format(n.get("name", ""), n["cidr"], len(hosts)))
+
+        def quick(ip):
+            for port in quick_ports:
+                r = probe(ip, port, 0.35)
+                if r:
+                    return ip, [port] if r == "open" else []
+            return ip, None
+
+        found = {}
+        with ThreadPoolExecutor(64) as ex:
+            for ip, ports in ex.map(quick, hosts):
+                if ports is not None:
+                    found[ip] = ports
+
+            def full(ip):
+                return ip, [p for p in all_ports if p not in found[ip] and probe(ip, p, 0.5) == "open"]
+            for ip, ports in ex.map(full, list(found)):
+                found[ip] += ports
+        arp = read_arp()
+        for ip in hosts:
+            if ip in arp and ip not in found:
+                found[ip] = []
+        with ThreadPoolExecutor(32) as ex:
+            names = dict(zip(list(found), ex.map(lambda ip: dns_name(ip) or netbios_name(ip), list(found))))
+        result.append({"network_id": n["network_id"], "hosts": [
+            {"ip": ip, "mac": arp.get(ip, ""), "hostname": names.get(ip, ""), "ports": sorted(set(p))} for ip, p in found.items()]})
+        if not quiet:
+            print("  {} Geräte erreichbar".format(len(found)))
+    return {"started_at": started, "networks": result}
+
+
+def auto(conf, quiet, force_report=False):
+    """Stündlicher Lauf: nachfragen, was fällig ist, und nur das erledigen."""
+    cfg = api(conf, "/api/agent/v1/config")
+    if cfg is None:  # ältere IT-Dokumentation ohne Nachfrage: einfach berichten
+        res = send(conf, collect())
+        if not quiet:
+            print("Bericht gesendet (Gerät #{}).".format(res.get("device_id")))
+        return
+    if cfg.get("report_due") or force_report:
+        res = send(conf, collect())
+        if not quiet:
+            print("Bericht gesendet (Gerät #{}).".format(res.get("device_id")))
+    if cfg.get("scan"):
+        payload = scan_networks(cfg["scan"], cfg.get("quick_ports") or [445, 80, 443, 22], cfg.get("ports") or [80, 443],
+                                cfg.get("max_hosts") or 1022, quiet)
+        res = api(conf, "/api/agent/v1/scan", payload)
+        if not quiet:
+            print("Scan gesendet: {} Geräte erreichbar.".format(res.get("hosts_up")))
 
 
 # --- Einrichten -------------------------------------------------------------
@@ -484,6 +698,7 @@ def install(args):
     conf = {"url": check_url(args.url, args.allow_http), "token": args.token.strip(), "insecure": bool(args.insecure)}
     if not conf["token"].startswith("itd_"):
         sys.exit("Der Schlüssel beginnt mit itd_ – bitte aus der IT-Dokumentation kopieren.")
+    os.makedirs(os.path.dirname(CONF), exist_ok=True)
     old = os.umask(0o077)
     try:
         with open(CONF, "w", encoding="utf-8") as f:
@@ -495,39 +710,54 @@ def install(args):
     shutil.copyfile(os.path.abspath(__file__), BIN)
     os.chmod(BIN, 0o755)
     py = sys.executable or "/usr/bin/python3"
-    if IS_MAC:
+    if IS_SYNO:
+        print("Eingerichtet unter {}.".format(SYNO_DIR))
+        print("")
+        print("Jetzt noch im DSM den Zeitplan anlegen:")
+        print("  Systemsteuerung → Aufgabenplaner → Erstellen → Geplante Aufgabe → Benutzerdefiniertes Skript")
+        print("  Allgemein:  Aufgabe „IT-Doku Agent“, Benutzer: root")
+        print("  Zeitplan:   Täglich, erste Ausführung 00:05, Häufigkeit: Jede Stunde, letzte Ausführung 23:05")
+        print("  Aufgabeneinstellungen → Benutzerdefiniertes Skript:")
+        print("      {} {} --auto --quiet".format(py, BIN))
+        print("")
+    elif IS_MAC:
         with open(PLIST, "w", encoding="utf-8") as f:
             f.write("""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>de.itdoku.agent</string>
-  <key>ProgramArguments</key><array><string>{py}</string><string>{bin}</string><string>--run</string><string>--quiet</string></array>
+  <key>ProgramArguments</key><array><string>{py}</string><string>{bin}</string><string>--auto</string><string>--quiet</string></array>
   <key>RunAtLoad</key><true/>
-  <key>StartInterval</key><integer>86400</integer>
+  <key>StartInterval</key><integer>3600</integer>
   <key>StandardErrorPath</key><string>/var/log/itdoku-agent.log</string>
 </dict></plist>
 """.format(py=py, bin=BIN))
         os.chmod(PLIST, 0o644)
         run(["launchctl", "unload", PLIST], 30)
         run(["launchctl", "load", "-w", PLIST], 30)
-        print("Eingerichtet: LaunchDaemon de.itdoku.agent (täglich und beim Start).")
-    elif which("systemctl") and os.path.isdir("/run/systemd/system"):
+        print("Eingerichtet: LaunchDaemon de.itdoku.agent (stündliche Nachfrage, Bericht täglich, und beim Start).")
+    elif which("systemctl") and os.path.isdir("/run/systemd/system"):  # (DSM nutzt den Aufgabenplaner, siehe oben)
         with open(SYSTEMD_SERVICE, "w", encoding="utf-8") as f:
             f.write("[Unit]\nDescription=IT-Dokumentation Agent\nWants=network-online.target\nAfter=network-online.target\n\n"
-                    "[Service]\nType=oneshot\nExecStart={} {} --run --quiet\nNice=10\nIOSchedulingClass=idle\n".format(py, BIN))
+                    "[Service]\nType=oneshot\nExecStart={} {} --auto --quiet\nNice=10\nIOSchedulingClass=idle\n".format(py, BIN))
         with open(SYSTEMD_TIMER, "w", encoding="utf-8") as f:
-            f.write("[Unit]\nDescription=IT-Dokumentation Agent (täglich)\n\n[Timer]\nOnBootSec=2min\nOnUnitActiveSec=1d\n"
-                    "RandomizedDelaySec=30min\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n")
+            f.write("[Unit]\nDescription=IT-Dokumentation Agent (stündliche Nachfrage)\n\n[Timer]\nOnBootSec=2min\nOnUnitActiveSec=1h\n"
+                    "RandomizedDelaySec=5min\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n")
         run(["systemctl", "daemon-reload"], 30)
         run(["systemctl", "enable", "--now", "itdoku-agent.timer"], 30)
-        print("Eingerichtet: systemd-Timer itdoku-agent.timer (täglich und nach dem Start).")
+        print("Eingerichtet: systemd-Timer itdoku-agent.timer (stündliche Nachfrage, Bericht täglich, und nach dem Start).")
     else:
         with open(CRON_FILE, "w", encoding="utf-8") as f:
-            f.write("SHELL=/bin/sh\n{m} {h} * * * root {py} {bin} --run --quiet\n@reboot root sleep 120 && {py} {bin} --run --quiet\n".format(
-                m=int(time.time()) % 60, h=int(time.time() / 60) % 24, py=py, bin=BIN))
-        print("Eingerichtet: Cron-Eintrag {} (täglich und nach dem Start).".format(CRON_FILE))
+            f.write("SHELL=/bin/sh\n{m} * * * * root {py} {bin} --auto --quiet\n@reboot root sleep 120 && {py} {bin} --auto --quiet\n".format(
+                m=int(time.time()) % 60, py=py, bin=BIN))
+        print("Eingerichtet: Cron-Eintrag {} (stündliche Nachfrage, Bericht täglich, und nach dem Start).".format(CRON_FILE))
     res = send(conf, collect())
     print("Erster Bericht gesendet – Gerät #{} in der IT-Dokumentation{}.".format(res.get("device_id"), " (neu angelegt)" if res.get("created") else ""))
+    cfg = api(conf, "/api/agent/v1/config", tries=1)
+    if cfg and cfg.get("scan"):
+        print("Diesem Agenten sind Netze zum Scannen zugeordnet – der erste Scan läuft jetzt.")
+        res = api(conf, "/api/agent/v1/scan", scan_networks(cfg["scan"], cfg["quick_ports"], cfg["ports"], cfg.get("max_hosts") or 1022))
+        print("Scan gesendet: {} Geräte erreichbar.".format(res.get("hosts_up")))
 
 
 def uninstall():
@@ -537,21 +767,29 @@ def uninstall():
         run(["launchctl", "unload", "-w", PLIST], 30)
     elif which("systemctl"):
         run(["systemctl", "disable", "--now", "itdoku-agent.timer"], 30)
+    if IS_SYNO:
+        print("Bitte auch die Aufgabe „IT-Doku Agent“ im DSM-Aufgabenplaner löschen.")
     for p in (PLIST, SYSTEMD_SERVICE, SYSTEMD_TIMER, CRON_FILE, CONF, BIN):
         try:
             os.remove(p)
         except OSError:
             pass
-    if not IS_MAC and which("systemctl"):
+    if IS_SYNO:
+        try:
+            os.rmdir(SYNO_DIR)
+        except OSError:
+            pass
+    elif not IS_MAC and which("systemctl"):
         run(["systemctl", "daemon-reload"], 30)
     print("Agent entfernt. Den Agenten in der IT-Dokumentation bitte unter Verwaltung → Agenten löschen oder sperren.")
 
 
 def main():
-    ap = argparse.ArgumentParser(description="IT-Dokumentation – Agent für Linux und macOS")
+    ap = argparse.ArgumentParser(description="IT-Dokumentation – Agent für Linux, macOS und Synology DSM")
     ap.add_argument("--install", action="store_true", help="einrichten (root): Konfiguration, Zeitplan, erster Bericht")
     ap.add_argument("--uninstall", action="store_true", help="entfernen (root)")
-    ap.add_argument("--run", action="store_true", help="Bericht jetzt senden")
+    ap.add_argument("--run", action="store_true", help="Bericht jetzt senden (und zugeordnete Netze scannen, falls fällig)")
+    ap.add_argument("--auto", action="store_true", help="für den Zeitplan: nachfragen, was fällig ist (Bericht, Scan)")
     ap.add_argument("--print", action="store_true", help="Bericht nur anzeigen, nichts senden")
     ap.add_argument("--url", help="Adresse der IT-Dokumentation, z. B. https://doku.example.de (bei --run: statt der Konfiguration)")
     ap.add_argument("--token", help="Agent-Schlüssel (itd_…)")
@@ -568,12 +806,10 @@ def main():
         install(args)
     elif args.uninstall:
         uninstall()
-    elif args.run:
+    elif args.run or args.auto:
         conf = load_conf() if not (args.url and args.token) else \
             {"url": check_url(args.url, args.allow_http), "token": args.token.strip(), "insecure": bool(args.insecure)}
-        res = send(conf, collect())
-        if not args.quiet:
-            print("Bericht gesendet (Gerät #{}).".format(res.get("device_id")))
+        auto(conf, args.quiet, force_report=args.run)
     else:
         ap.print_help()
 

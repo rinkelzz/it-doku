@@ -47,10 +47,17 @@ def main() -> int:
     conn = sqlite3.connect(str(settings.db_path))
     conn.row_factory = sqlite3.Row
     token = agents.new_token()
-    conn.execute("INSERT INTO agents(name, token_hash, token_hint, created_at) VALUES ('e2e', ?, ?, '2026-01-01T00:00:00Z')",
-                 (agents.token_hash(token), agents.hint(token)))
+    aid = conn.execute("INSERT INTO agents(name, token_hash, token_hint, created_at) VALUES ('e2e', ?, ?, '2026-01-01T00:00:00Z')",
+                       (agents.token_hash(token), agents.hint(token))).lastrowid
+    args = sys.argv[1:]
+    expect_scan = "--expect-scan" in args
+    if expect_scan:
+        args.remove("--expect-scan")
+        # Netz, das der Agent vor Ort scannen soll (Loopback: 127.0.0.1 antwortet immer)
+        conn.execute("INSERT INTO networks(name, cidr, scan, scan_agent_id, scan_requested, sort, created_at) VALUES ('Loopback', '127.0.0.0/30', 1, ?, 1, 0, '2026-01-01T00:00:00+00:00')",
+                     (aid,))
     conn.commit()
-    cmd = [a.replace("{url}", f"http://127.0.0.1:{port}").replace("{token}", token) for a in sys.argv[1:]]
+    cmd = [a.replace("{url}", f"http://127.0.0.1:{port}").replace("{token}", token) for a in args]
     print("Starte:", " ".join(c if token not in c else "<token>" for c in cmd), flush=True)
     rc = subprocess.call(cmd, cwd=str(ROOT), timeout=900)
     a = conn.execute("SELECT * FROM agents WHERE name = 'e2e'").fetchone()
@@ -69,6 +76,12 @@ def main() -> int:
                "device": dict(d)}
     print(json.dumps(summary, indent=2, ensure_ascii=False, default=str)[:4000])
     problems = [k for k in ("platform", "hostname", "os", "cpu", "ram_mb", "disks", "interfaces", "software") if not summary[k]]
+    if expect_scan:
+        run = conn.execute("SELECT * FROM scan_runs WHERE agent_id = ?", (aid,)).fetchone()
+        hosts = [dict(h) for h in conn.execute("SELECT ip, ports FROM scan_hosts WHERE run_id = ?", (run["id"],))] if run else []
+        print("Scan:", dict(run) if run else None, hosts)
+        if not run or not any(h["ip"] == "127.0.0.1" for h in hosts):
+            problems.append("Scan-Ergebnis (127.0.0.1)")
     if problems:
         print("Fehlt im Bericht:", ", ".join(problems))
         return 1

@@ -1,7 +1,7 @@
 // IT-Dokumentation – Agenten: Verwaltung, Einrichtung, Bericht am Gerät, Hinweis auf der Übersicht
 "use strict";
 
-const AG_PLAT = { windows: "Windows", linux: "Linux", macos: "macOS" };
+const AG_PLAT = { windows: "Windows", linux: "Linux", macos: "macOS", synology: "Synology" };
 const agState = { list: [], settings: {} };
 
 function agAgo(ts) {
@@ -26,11 +26,18 @@ function agCommands(url, token) {
       `sudo python3 /tmp/itdoku-agent.py --install --url ${url} --token ${token}${http ? " --allow-http" : ""}`,
     macos: `curl -fsSL ${url}/agent/itdoku-agent.py -o /tmp/itdoku-agent.py\n` +
       `sudo /usr/bin/python3 /tmp/itdoku-agent.py --install --url ${url} --token ${token}${http ? " --allow-http" : ""}`,
+    synology: `sudo -i\n` +
+      `curl -fsSL ${url}/agent/itdoku-agent.py -o /tmp/itdoku-agent.py\n` +
+      `python3 /tmp/itdoku-agent.py --install --url ${url} --token ${token}${http ? " --allow-http" : ""}`,
   };
 }
 const AG_NOTES = {
   windows: "In einer PowerShell <b>als Administrator</b> einfügen. Legt die geplante Aufgabe „ITDoku Agent“ an (läuft als SYSTEM, täglich und nach dem Start) und schickt sofort den ersten Bericht. Keine Zusatzmodule nötig (ab Windows 10 / Server 2016).",
   linux: "Als Benutzer mit sudo einfügen. Installiert nach /usr/local/bin, legt einen systemd-Timer an (täglich und nach dem Start; ohne systemd einen Cron-Eintrag) und schickt sofort den ersten Bericht. Braucht nur Python 3 (Standardbibliothek).",
+  synology: "Per SSH auf der Synology anmelden (DSM: Systemsteuerung → Terminal &amp; SNMP → SSH aktivieren; Benutzer aus der Gruppe administrators) und einfügen. " +
+    "Danach im <b>DSM-Aufgabenplaner</b> die Aufgabe anlegen, die der Befehl am Ende anzeigt (Benutzer root, stündlich) – DSM-Updates lassen sie stehen. " +
+    "Die NAS meldet sich dann selbst (Modell, Seriennummer, DSM-Version, Volumes, Pakete) und kann <b>das Netz vor Ort scannen</b>: " +
+    "am Netz unter „Gescannt von“ diesen Agenten wählen. SSH danach gern wieder ausschalten.",
   macos: "Im Terminal einfügen (Administrator). Legt einen LaunchDaemon an (täglich und beim Start) und schickt sofort den ersten Bericht. Python 3 kommt mit den Command Line Tools (<span class=\"mono\">xcode-select --install</span>).",
 };
 function agSetup(name, token, urls, platform) {
@@ -81,7 +88,7 @@ async function agRenew(a, after) {
   if (!confirm(`Neuen Schlüssel für „${a.name}“ erzeugen? Der alte Schlüssel wird sofort ungültig – der Agent muss mit dem neuen Befehl neu eingerichtet werden.`)) return;
   try {
     const r = await api(`agents/${a.id}/token`, { method: "POST" });
-    agSetup(a.name, r.token, r.urls, a.platform);
+    agSetup(a.name, r.token, r.urls, a.platform_label === "Synology" ? "synology" : a.platform);
     if (after) after();
   } catch (e) { alert(e.message); }
 }
@@ -108,7 +115,7 @@ async function loadAgents() {
       const p = a.problems || {};
       const warn = [p.updates_pending ? `${p.updates_pending} Update${p.updates_pending > 1 ? "s" : ""}` : "", p.reboot_required ? "Neustart" : "", p.disks_full ? "Platte voll" : "",
                     (p.services_stopped || []).length ? `${p.services_stopped.length} Dienst${p.services_stopped.length > 1 ? "e" : ""} gestoppt` : ""].filter(Boolean);
-      return `<tr data-ag="${a.id}" class="click" title="Bearbeiten, sperren, neuer Schlüssel"><td><b>${esc(a.name)}</b>${a.disabled ? ' <span class="tag off">gesperrt</span>' : ""}<br><small class="muted mono">${esc(a.token_hint)}</small></td>
+      return `<tr data-ag="${a.id}" class="click" title="Bearbeiten, sperren, neuer Schlüssel"><td><b>${esc(a.name)}</b>${a.disabled ? ' <span class="tag off">gesperrt</span>' : ""}<br><small class="muted mono">${esc(a.token_hint)}</small>${(a.scans || []).length ? `<br><span class="tag" title="scannt vor Ort">🔍 ${esc(a.scans.join(", "))}</span>` : ""}</td>
       <td>${a.device_id ? `<a href="#devices/${a.device_id}">${esc(a.device_icon || "🖥️")} ${esc(a.device_name)}</a>` : '<span class="muted">wird beim ersten Bericht zugeordnet</span>'}</td>
       <td>${esc(a.os_name || a.platform_label || "–")}${warn.length ? `<br>${warn.map(w => `<span class="tag warn">${esc(w)}</span>`).join(" ")}` : ""}</td>
       <td class="nowrap" data-sort="${esc(a.last_report_at || "")}">${a.last_report_at ? (a.stale ? `<span class="tag bad">${agAgo(a.last_report_at)}</span>` : agAgo(a.last_report_at)) : '<span class="muted">wartet</span>'}</td>

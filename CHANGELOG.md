@@ -2,6 +2,28 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.8.0] – 2026-11-06
+
+### Neu
+- **Agent scannt das Netz vor Ort** – für entfernte Standorte ohne VPN. Am Netz unter **„Gescannt von“** einen Linux-,
+  macOS- oder Synology-Agenten wählen. Der Agent scannt dort mit demselben Verfahren wie die NAS (TCP-Proben, MAC und
+  Hersteller aus der ARP-Tabelle, Namen aus DNS/NetBIOS) und schickt das Ergebnis per HTTPS. Es landet im gewohnten
+  **🔍 Scan**: neue Geräte übernehmen, ergänzen, Abweichungen, zuletzt online.
+- Der Agent **fragt stündlich nach** (`--auto`): Bericht einmal am Tag, Scan einmal am Tag oder sofort, wenn in der App
+  „Jetzt scannen“ gedrückt wurde („angefordert“). Netze mit Agent scannt die NAS selbst nicht mit.
+- **Synology DSM als Agent:** Modell, Seriennummer, DSM-Version mit Update-Stand, Volumes und installierte Pakete.
+  Einrichten per SSH (Befehl unter „Synology“ im Einrichtungsdialog), Zeitplan im DSM-Aufgabenplaner, Dateien unter
+  `/usr/local/itdoku-agent`.
+- Scan-Ansicht: je Netz der zuständige Scanner, letzter Scan und „angefordert“; Netz-Karte und Agentenliste zeigen,
+  wer welches Netz scannt.
+- CI: Linux- und macOS-Agent scannen im Ende-zu-Ende-Test ein zugeordnetes Netz.
+
+### Geändert
+- Agent 1.1: Zeitplan stündlich statt täglich (Bericht bleibt täglich). Mit 1.0 eingerichtete Agenten laufen weiter;
+  für den Scan vor Ort einmal neu einrichten.
+- Je Netz zählt im Scan-Ergebnis der jüngste Lauf seines Scanners; alte Läufe werden aufgeräumt, der letzte jedes
+  Scanners bleibt.
+
 ## [0.7.0] – 2026-11-06
 
 ### Neu

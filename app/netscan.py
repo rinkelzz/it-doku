@@ -171,7 +171,7 @@ def check_network(cidr: str) -> Optional[str]:
 
 
 def targets(conn, network_ids: Optional[List[int]] = None):
-    rows = conn.execute("SELECT * FROM networks WHERE scan = 1 AND cidr != '' ORDER BY sort, id").fetchall()
+    rows = conn.execute("SELECT * FROM networks WHERE scan = 1 AND cidr != '' AND scan_agent_id IS NULL ORDER BY sort, id").fetchall()
     if network_ids:
         rows = [r for r in rows if r["id"] in network_ids]
     return [(r, [str(h) for h in ipaddress.ip_network(r["cidr"]).hosts()]) for r in rows if not check_network(r["cidr"])]
@@ -214,24 +214,38 @@ def scan(conn, trigger: str = "manual", user_id: Optional[int] = None) -> int:
             up = list(found)
             with ThreadPoolExecutor(32) as ex:
                 names = dict(zip(up, ex.map(lambda ip: dns_name(ip) or netbios_name(ip), up)))
-            stamp = now_utc_str()
-            for ip, h in found.items():
-                mac = arp.get(ip, "")
-                conn.execute("INSERT OR REPLACE INTO scan_hosts(run_id, network_id, ip, mac, vendor, hostname, ports) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                             (run_id, h["network"]["id"], ip, mac, vendor(mac), names.get(ip, ""), ",".join(str(p) for p in sorted(h["ports"]))))
-                conn.execute("UPDATE ip_addresses SET last_seen = ? WHERE ip = ? AND network_id = ?", (stamp, ip, h["network"]["id"]))
-            for net, _ in tg:
-                conn.execute("UPDATE networks SET first_scan_at = COALESCE(first_scan_at, ?) WHERE id = ?", (stamp, net["id"]))
-            conn.execute("UPDATE scan_runs SET finished_at = ?, hosts_up = ? WHERE id = ?", (now_utc_str(), len(found), run_id))
+            hosts = [{"network_id": h["network"]["id"], "ip": ip, "mac": arp.get(ip, ""), "hostname": names.get(ip, ""),
+                      "ports": h["ports"]} for ip, h in found.items()]
+            store_hosts(conn, run_id, hosts, [net["id"] for net, _ in tg])
         except Exception as e:  # noqa: BLE001
             conn.execute("UPDATE scan_runs SET finished_at = ?, error = ? WHERE id = ?", (now_utc_str(), str(e)[:500], run_id))
             raise
-        old = [r[0] for r in conn.execute("SELECT id FROM scan_runs ORDER BY id DESC LIMIT -1 OFFSET ?", (KEEP_RUNS,))]
-        for rid in old:
-            conn.execute("DELETE FROM scan_runs WHERE id = ?", (rid,))
+        prune_runs(conn)
         return run_id
     finally:
         _set(running=False, phase="")
+
+
+def store_hosts(conn, run_id: int, hosts: List[Dict], network_ids: List[int]) -> None:
+    """Ergebnis eines Laufs speichern (lokal oder vom Agent): Hosts, „zuletzt online“, erster Scan je Netz."""
+    stamp = now_utc_str()
+    for h in hosts:
+        mac = _norm_mac(h.get("mac", ""))
+        conn.execute("INSERT OR REPLACE INTO scan_hosts(run_id, network_id, ip, mac, vendor, hostname, ports) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     (run_id, h["network_id"], h["ip"], mac, vendor(mac), (h.get("hostname") or "")[:100],
+                      ",".join(str(p) for p in sorted(set(h.get("ports") or [])))))
+        conn.execute("UPDATE ip_addresses SET last_seen = ? WHERE ip = ? AND network_id = ?", (stamp, h["ip"], h["network_id"]))
+    for nid in network_ids:
+        conn.execute("UPDATE networks SET first_scan_at = COALESCE(first_scan_at, ?), last_scan_at = ? WHERE id = ?", (stamp, stamp, nid))
+    conn.execute("UPDATE scan_runs SET finished_at = ?, hosts_up = ? WHERE id = ?", (now_utc_str(), len(hosts), run_id))
+
+
+def prune_runs(conn) -> None:
+    """Ältere Läufe löschen – aber den jüngsten jedes Scanners (NAS und jeder Agent) immer behalten."""
+    keep = {r[0] for r in conn.execute("SELECT MAX(id) FROM scan_runs GROUP BY COALESCE(agent_id, 0)")}
+    for (rid,) in conn.execute("SELECT id FROM scan_runs ORDER BY id DESC LIMIT -1 OFFSET ?", (KEEP_RUNS * 2,)).fetchall():
+        if rid not in keep:
+            conn.execute("DELETE FROM scan_runs WHERE id = ?", (rid,))
 
 
 def _scan_network(net, hosts: List[str], found: Dict) -> None:
@@ -293,8 +307,17 @@ def results(conn, stale_days: int = 30) -> Dict:
             "LEFT JOIN device_types t ON t.id = d.type_id")}
         known_macs = {_norm_mac(r["mac"]) for r in known.values() if r["mac"]}
         gateways = {r["gateway"] for r in conn.execute("SELECT gateway FROM networks WHERE gateway != ''")}
-        for h in conn.execute("SELECT h.*, n.name AS network_name FROM scan_hosts h LEFT JOIN networks n ON n.id = h.network_id "
-                              "WHERE run_id = ? ORDER BY h.network_id", (last["id"],)):
+        latest = {}  # Netz → jüngster fertiger Lauf seines Scanners (NAS selbst oder Agent)
+        for n in conn.execute("SELECT id, scan_agent_id FROM networks WHERE scan = 1"):
+            r = conn.execute("SELECT MAX(r.id) FROM scan_runs r JOIN scan_hosts h ON h.run_id = r.id AND h.network_id = ? "
+                             "WHERE r.finished_at IS NOT NULL AND r.agent_id IS ?", (n["id"], n["scan_agent_id"])).fetchone()
+            if r and r[0]:
+                latest[n["id"]] = r[0]
+        rows = []
+        for nid, rid in latest.items():
+            rows += conn.execute("SELECT h.*, n.name AS network_name FROM scan_hosts h LEFT JOIN networks n ON n.id = h.network_id "
+                                 "WHERE h.run_id = ? AND h.network_id = ? ORDER BY h.network_id", (rid, nid)).fetchall()
+        for h in rows:
             ports = [int(p) for p in h["ports"].split(",") if p]
             k = known.get((h["ip"], h["network_id"]))
             mac = _norm_mac(h["mac"])

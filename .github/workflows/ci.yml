@@ -55,7 +55,7 @@ jobs:
         run: python tests/agent_e2e.py powershell.exe -NoProfile -ExecutionPolicy Bypass -File app/agent/itdoku-agent.ps1 -Install -Url "{url}" -Token "{token}" -AllowHttp -SkipUpdateSearch
       - name: Linux/macOS – Bericht senden
         if: runner.os != 'Windows'
-        run: python tests/agent_e2e.py python3 app/agent/itdoku-agent.py --run --url "{url}" --token "{token}" --allow-http
+        run: python tests/agent_e2e.py --expect-scan python3 app/agent/itdoku-agent.py --run --url "{url}" --token "{token}" --allow-http
       - name: Linux/macOS – Einrichten (Zeitplan)
         if: runner.os != 'Windows'
         run: sudo -E env "PATH=$PATH" python tests/agent_e2e.py python3 app/agent/itdoku-agent.py --install --url "{url}" --token "{token}" --allow-http
