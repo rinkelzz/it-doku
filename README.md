@@ -1,0 +1,193 @@
+# IT-Dokumentation für Synology
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-☕-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/lapalutschi)
+
+[![Tests](https://github.com/rinkelzz/it-doku/actions/workflows/ci.yml/badge.svg)](https://github.com/rinkelzz/it-doku/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/rinkelzz/it-doku?include_prereleases)](https://github.com/rinkelzz/it-doku/releases)
+[![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
+
+Eine schlanke Alternative zu IT Glue: die IT-Dokumentation **eines Kunden** – Standorte, Ansprechpartner, Geräte,
+Lizenzen, Netzwerkplan und Zugangsdaten (verschlüsselt im Tresor). Sie läuft als Paket auf der NAS des Kunden, mit
+eigenem Fenster in DSM. Die Daten bleiben beim Kunden; der IT-Dienstleister und eine Vertrauensperson beim Kunden
+haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
+
+> **Stand 0.1:** Das Fundament steht (Anmeldung, Benutzer, Datensicherung, Updates, Protokoll). Die eigentliche
+> Dokumentation kommt in den nächsten Stufen – siehe [Fahrplan](#fahrplan).
+
+![Übersicht](docs/screenshots/uebersicht.png)
+
+## Inhalt
+
+- [Funktionen](#funktionen)
+- [Rechte](#rechte)
+- [Tresor für Zugangsdaten (geplant)](#tresor-für-zugangsdaten-geplant)
+- [Fahrplan](#fahrplan)
+- [Installation auf der Synology](#installation-auf-der-synology)
+- [Updates über das Paket-Zentrum](#updates-über-das-paket-zentrum)
+- [Datensicherung](#datensicherung)
+- [Von unterwegs erreichbar machen (Reverse Proxy)](#von-unterwegs-erreichbar-machen-reverse-proxy)
+- [Port ändern](#port-ändern)
+- [Entwicklung](#entwicklung)
+- [English](#english)
+
+## Funktionen
+
+- **Eigenes Fenster in DSM** mit Single Sign-on: DSM-Administratoren sind ohne weitere Anmeldung drin.
+- **Anmeldung** mit eigenem Konto oder DSM-Konto (inklusive Zwei-Faktor-Code), Login-Sperre gegen Durchprobieren.
+- **Benutzer** mit **Vollzugriff** oder **nur Lesen**.
+- **Firmenname und Logo** des Kunden in Kopfzeile und Anmeldung, vier Designs (Klassisch, Synology DSM, Dunkel,
+  Warm & groß), für Handy und Desktop.
+- **Nächtliche Datensicherung** in einen freigegebenen Ordner (für Hyper Backup), Wiederherstellen per Klick.
+- **Updates über das Paket-Zentrum** – die App ist ihre eigene Paketquelle.
+- **Änderungsprotokoll** aller wichtigen Aktionen, als CSV exportierbar.
+- **Port** in der App änderbar, Mailversand über den eigenen SMTP-Server.
+
+| Anmeldung | Benutzer | System |
+|---|---|---|
+| ![Anmeldung](docs/screenshots/anmeldung.png) | ![Benutzer](docs/screenshots/benutzer.png) | ![System](docs/screenshots/system.png) |
+
+## Rechte
+
+| | Vollzugriff | Lesen |
+|---|---|---|
+| Dokumentation ansehen | ✔ | ✔ |
+| Dokumentation ändern | ✔ | – |
+| Zugangsdaten und Lizenzschlüssel | ✔ (mit eigenem Tresor-Passwort) | – |
+| Verwaltung (Benutzer, Einstellungen, Sicherung) | ✔ | – |
+
+Ein DSM-Konto kommt nur hinein, wenn es DSM-Administrator ist (dann mit Vollzugriff) oder wenn in der
+IT-Dokumentation ein Benutzer mit gleichem Namen angelegt ist. Beides lässt sich unter **Verwaltung → Einstellungen**
+ändern.
+
+## Tresor für Zugangsdaten (geplant)
+
+Zugangsdaten und Lizenzschlüssel liegen ab Stufe 2 verschlüsselt in der Datenbank:
+
+- Ein zufälliger **Datenschlüssel** verschlüsselt die Einträge (AES-256 mit HMAC-SHA-256 als Echtheitsprüfung, in
+  reinem Python – ohne native Bibliotheken).
+- Jeder Benutzer mit Vollzugriff hat ein **eigenes Tresor-Passwort**, das den Datenschlüssel verschlüsselt
+  (PBKDF2-SHA-256). Es wird nirgends gespeichert. Neue Benutzer schaltet jemand mit geöffnetem Tresor frei.
+- Bei der Einrichtung entsteht ein **Notfall-Schlüssel zum Ausdrucken** – für den Firmentresor des Kunden.
+  Ohne Tresor-Passwort und ohne Notfall-Schlüssel sind die Zugangsdaten nicht wiederherstellbar. Das ist gewollt.
+- Der geöffnete Schlüssel liegt nur im Arbeitsspeicher und sperrt sich nach einiger Zeit ohne Aktivität.
+- Jedes Anzeigen und Kopieren eines Passworts steht im Änderungsprotokoll.
+- In der Datensicherung liegt der Tresor nur verschlüsselt.
+
+## Fahrplan
+
+| Version | Inhalt |
+|---|---|
+| **0.1** ✔ | Fundament: SPK, DSM-Fenster, Single Sign-on, Benutzer, Sicherung, Updates, Protokoll |
+| 0.2 | Stammdaten: Standorte, Ansprechpartner (auch externe Dienstleister), Geräte mit frei pflegbaren Typen, Lizenzen, Netze/VLANs mit IP-Liste, Netzwerkdiagramm als Bild, globale Suche |
+| 0.3 | Tresor: Zugangsdaten mit Tresor-Passwort, Notfall-Schlüssel, Auto-Sperre, Kopieren-Knopf, Passwort-Generator, verschlüsselte Lizenzschlüssel |
+| 0.4 | Komfort: Sammel-Mail zu ablaufenden Lizenzen, Garantien, Zertifikaten und Domains; PDF „Notfall-Handbuch“ (ohne und – bei geöffnetem Tresor – mit Passwörtern); CSV-Import für Geräte; Anhänge |
+| später | 2FA-Codes (TOTP) im Tresor, Netzwerk-Scan, Wiki-Seiten für Anleitungen, Verknüpfung mit dem Helpdesk aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) |
+
+## Installation auf der Synology
+
+Voraussetzung: DSM 7. Ein Paket für alle Modelle – **Intel/AMD** und **ARM** (ARMv8, ARMv7).
+
+1. Unter [Releases](https://github.com/rinkelzz/it-doku/releases) die neueste
+   `itdoku-<version>-0001-noarch.spk` herunterladen.
+2. DSM → **Paket-Zentrum** → **Manuelle Installation** → SPK auswählen → Hinweis zu Drittanbieter-Paketen bestätigen.
+3. Im Assistenten eingeben:
+   - ein Passwort für den Benutzer `admin` (mindestens 8 Zeichen),
+   - optional den **Firmennamen** des Kunden,
+   - den **Port** (Standard `8780` – nur ändern, wenn er schon belegt ist).
+4. „IT-Dokumentation“ erscheint im DSM-Hauptmenü.
+
+Das Paket nutzt das Python der NAS (3.8 bis 3.13). Fehlt es, bricht die Installation mit einem Hinweis ab –
+dann im Paket-Zentrum „Python 3.9“ installieren. Die Daten liegen unter `/var/packages/itdoku/var/` und
+bleiben bei Updates erhalten. **Beim Deinstallieren werden sie gelöscht** – deshalb die
+[Datensicherung](#datensicherung) einrichten.
+
+## Updates über das Paket-Zentrum
+
+Die App ist ihre eigene Paketquelle – neue Releases von GitHub erscheinen im Paket-Zentrum zum Aktualisieren.
+Einmalig einrichten:
+
+1. **Paket-Zentrum → Einstellungen → Allgemein → Vertrauensebene:** „Beliebiger Herausgeber“
+   (das Paket ist nicht von Synology signiert).
+2. **Paket-Zentrum → Einstellungen → Paketquellen → Hinzufügen:** Name `IT-Dokumentation`,
+   Ort `http://127.0.0.1:8780/spk` (bei geändertem Port entsprechend – die genaue Adresse steht in der App
+   unter **Verwaltung → System → Updates**).
+
+Die App prüft etwa alle 30 Minuten (oder per „Jetzt prüfen“), lädt eine neue SPK auf die NAS und bietet sie dort an.
+Die Paketquelle antwortet nur im lokalen Netz.
+
+## Datensicherung
+
+Die App sichert die Datenbank jede Nacht (Standard 2 Uhr) in den Paketordner. Weil DSM diesen Ordner beim
+Deinstallieren löscht und Hyper Backup ihn nicht erfasst, gehört zusätzlich ein **freigegebener Ordner** dazu:
+
+1. **Systemsteuerung → Freigegebener Ordner** → z. B. `backup` → **Bearbeiten → Berechtigungen** →
+   oben **System-interner Benutzer** wählen → `itdoku` **Lesen/Schreiben** geben.
+2. In der App unter **Verwaltung → System → Datensicherung** den Ordner eintragen, z. B.
+   `/volume1/backup/itdoku` (die App prüft die Schreibrechte), und die Aufbewahrung in Tagen festlegen.
+3. Den freigegebenen Ordner in Hyper Backup aufnehmen.
+
+Sicherungen lassen sich dort auch von Hand erstellen, herunterladen, wiederherstellen und löschen (die neueste ist
+geschützt); vor dem Wiederherstellen wird der aktuelle Stand automatisch gesichert. Das **Mail-Passwort wird nicht
+mitgesichert**. Den Ordner bitte **nicht für alle freigeben**.
+
+## Von unterwegs erreichbar machen (Reverse Proxy)
+
+Für den Zugriff von außen braucht die App eine eigene https-Adresse, z. B. `https://doku.kundendomain.de`:
+
+1. DNS-Eintrag für die Subdomain auf die NAS zeigen lassen (z. B. CNAME auf die DDNS-Adresse).
+2. **Systemsteuerung → Sicherheit → Zertifikat**: Let's-Encrypt-Zertifikat für die Subdomain.
+3. **Systemsteuerung → Anmeldeportal → Erweitert → Reverse Proxy**: Quelle `HTTPS doku.kundendomain.de:443`,
+   Ziel `HTTP localhost:8780`.
+4. In der App unter **Verwaltung → Einstellungen → Öffentliche Adresse** genau diese Adresse eintragen.
+
+Für eine Dokumentation mit Zugangsdaten ist ein **VPN** zur NAS meist die bessere Wahl als eine öffentliche Adresse.
+Den Port im Router **nie** direkt freigeben. Greift jemand per `http://` von außerhalb des Heimnetzes zu, zeigt die
+App einen Warnhinweis.
+
+## Port ändern
+
+Unter **Verwaltung → System → Port** einen neuen Port eintragen (1025–65535, nicht von DSM belegt). Die App prüft,
+ob er frei ist, speichert ihn in `/var/packages/itdoku/var/config.env` und startet sich selbst neu.
+Im DSM-Fenster geht es danach einfach weiter. Anpassen musst du nur, was du selbst eingerichtet hast:
+die **Paketquelle** im Paket-Zentrum und das **Ziel im Reverse Proxy**.
+
+## Entwicklung
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q                                    # alle Tests
+ITD_DATA_DIR=./data python -m app.main       # startet auf http://localhost:8780
+```
+
+Beim ersten Start ohne `ITD_ADMIN_PASSWORD` steht das Admin-Passwort in `data/ERSTES_ADMIN_PASSWORT.txt`.
+Die SPK baut `./synology/build_spk.sh` (lädt die Abhängigkeiten für Python 3.8–3.13 und alle Prozessoren von PyPI).
+
+- **Technik:** Python + FastAPI + SQLite, statisches HTML/CSS/JS ohne Build-Schritt, keine nativen Bibliotheken.
+  Das Fundament stammt aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) (MIT).
+- **Datenbank-Migrationen** über `PRAGMA user_version` in `app/db.py`: Neue Tabellen und Spalten kommen immer als
+  neuer, nummerierter Schritt dazu; jeder Schritt läuft in einer eigenen Transaktion. Die Tests spielen jede
+  Ausgangsversion durch.
+- **Tests** laufen bei jedem Push auf Python 3.8 und 3.13 (GitHub Actions „Tests“).
+- **Release:** Version in `app/__init__.py` und `CHANGELOG.md` eintragen, pushen, dann
+  **Actions → Release → Run workflow** – baut die SPK und legt das GitHub-Release an.
+
+## Lizenz
+
+[MIT](LICENSE) – frei nutzbar, auch kommerziell. Gefällt dir die App? [Spendier mir einen Kaffee ☕](https://buymeacoffee.com/lapalutschi)
+
+## English
+
+**IT-Dokumentation** is a lean, self-hosted alternative to IT Glue for Synology NAS (DSM 7): per-customer IT
+documentation – sites, contacts, devices, licenses, network plan and credentials in an encrypted vault – stored on the
+customer's own NAS, in its own DSM window with single sign-on. The user interface is German.
+
+- One noarch package for Intel/AMD and ARM, no native libraries; uses the NAS's Python 3.8–3.13.
+- 0.1 (foundation): DSM login incl. 2FA, users with full or read-only access, company name and logo, four themes,
+  nightly backups to a shared folder (for Hyper Backup), updates through Package Center, audit log, configurable port.
+- Planned: master data (0.2), credential vault with per-user vault passwords and a printable recovery key (0.3),
+  expiry reminders, emergency handbook PDF and CSV import (0.4).
+
+Install: download the `.spk` from [Releases](https://github.com/rinkelzz/it-doku/releases) →
+Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.
+
+Like it? [Buy me a coffee ☕](https://buymeacoffee.com/lapalutschi)

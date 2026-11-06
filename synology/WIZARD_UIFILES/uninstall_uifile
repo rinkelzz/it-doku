@@ -1,0 +1,10 @@
+[
+    {
+        "step_title": "IT-Dokumentation deinstallieren",
+        "items": [
+            {
+                "desc": "<b>Achtung:</b> Beim Deinstallieren werden alle Daten der IT-Dokumentation gelöscht (auch der Tresor mit den Zugangsdaten). Sicherungen im freigegebenen Ordner (Verwaltung → System → Datensicherung) bleiben erhalten. Für ein Update einfach die neue Version installieren – dabei bleiben die Daten erhalten."
+            }
+        ]
+    }
+]

@@ -1,0 +1,24 @@
+{
+    "ITDoku.js": {
+        "SYNO.SDS.ITDoku.Application": {
+            "type": "app",
+            "title": "IT-Dokumentation",
+            "desc": "Geräte, Lizenzen, Netzwerk, Zugangsdaten",
+            "icon": "images/icon_{0}.png",
+            "texts": "texts",
+            "allUsers": true,
+            "allowMultiInstance": false,
+            "appWindow": "SYNO.SDS.ITDoku.AppWindow",
+            "grantPrivilege": "all",
+            "advanceGrantPrivilege": true,
+            "depend": ["SYNO.SDS.ITDoku.AppWindow"]
+        },
+        "SYNO.SDS.ITDoku.AppWindow": {
+            "type": "lib",
+            "title": "IT-Dokumentation",
+            "icon": "images/icon_{0}.png",
+            "texts": "texts",
+            "depend": []
+        }
+    }
+}

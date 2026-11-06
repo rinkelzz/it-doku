@@ -1,0 +1,10 @@
+"""Gemeinsame Testumgebung – wird vor allen Testdateien geladen."""
+import os
+import tempfile
+
+os.environ["ITD_DATA_DIR"] = tempfile.mkdtemp()
+os.environ["ITD_ADMIN_PASSWORD"] = "admin-passwort"
+os.environ["ITD_PUBLIC_URL"] = "https://doku.example.de"
+os.environ["ITD_SCHEDULER"] = "0"
+os.environ["ITD_UPDATE_CHECK"] = "0"
+os.environ["ITD_SELF_RESTART"] = "0"
