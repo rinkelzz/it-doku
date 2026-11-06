@@ -2,6 +2,18 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.8.1] – 2026-11-06
+
+### Behoben
+- **„Läuft seit“ bei Windows-Schnellstart:** Herunterfahren ist bei aktivem Schnellstart eigentlich Ruhezustand, die
+  Startzeit bleibt deshalb alt („4 Tage“, obwohl der PC gerade eingeschaltet wurde). Der Windows-Agent (1.1) liest jetzt
+  das letzte Einschalten aus dem System-Protokoll (Kernel-Boot 27); die App zeigt „eingeschaltet …“ und daneben den
+  letzten echten Neustart – wichtig, weil Updates erst nach „Neu starten“ greifen.
+- **Selbst gebaute PCs:** Platzhalter wie „To Be Filled By O.E.M.“ oder „System Product Name“ bei Hersteller, Modell
+  und Seriennummer werden verworfen; stattdessen kommen Hersteller und Modell des Mainboards (z. B. „ASRock B550 Pro4“).
+  Schon gespeicherte Platzhalter am Gerät werden beim nächsten Bericht ersetzt.
+- „1 ausstehendes Update“ statt „1 ausstehende Updates“.
+
 ## [0.8.0] – 2026-11-06
 
 ### Neu

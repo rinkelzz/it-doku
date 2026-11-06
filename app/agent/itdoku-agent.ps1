@@ -34,7 +34,7 @@ if ($PSVersionTable.PSVersion.Major -lt 6) {
   $machine = [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine')
   if ($machine) { $env:PSModulePath = "$env:ProgramFiles\WindowsPowerShell\Modules;$machine" }
 }
-$AgentVersion = '1.0'
+$AgentVersion = '1.1'
 $Dir = Join-Path $env:ProgramData 'ITDoku'
 $ConfFile = Join-Path $Dir 'config.json'
 $ScriptFile = Join-Path $Dir 'itdoku-agent.ps1'
@@ -75,7 +75,9 @@ function Get-HwInfo {
   $virtual = ($cs.Model -match 'Virtual|VMware|KVM|QEMU|HVM|Bochs') -or ($cs.Manufacturer -match 'VMware|QEMU|Xen|innotek|Parallels')
   if ($virtual) { $chassis = 'vm' }
   $serial = $bios.SerialNumber
+  $board = Get-CimInstance Win32_BaseBoard -ErrorAction SilentlyContinue
   @{ manufacturer = $cs.Manufacturer; model = $cs.Model; serial = "$serial"; cpu = ($cpu[0].Name -replace '\s+', ' ').Trim();
+     board_manufacturer = "$($board.Manufacturer)"; board_product = "$($board.Product)";
      cores = ($cpu | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum;
      ram_mb = [int64]([math]::Round($cs.TotalPhysicalMemory / 1MB)); chassis = $chassis; virtual = [bool]$virtual;
      bios = "$($bios.Manufacturer) $($bios.SMBIOSBIOSVersion)".Trim() }
@@ -158,8 +160,24 @@ function Get-Services {
   })
 }
 
+function Get-PowerOn {
+  # Windows-Schnellstart: „Herunterfahren“ ist eigentlich Ruhezustand, LastBootUpTime bleibt alt.
+  # Das letzte Einschalten steht als Kernel-Boot-Ereignis 27 im System-Protokoll (BootType 1 = Schnellstart).
+  $res = @{ power_on_time = ''; fast_startup = $null }
+  try {
+    $hb = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' -Name HiberbootEnabled -ErrorAction Stop
+    $res.fast_startup = [bool]$hb.HiberbootEnabled
+  } catch { }
+  try {
+    $ev = Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-Kernel-Boot'; Id = 27 } -MaxEvents 1 -ErrorAction Stop
+    $res.power_on_time = IsoUtc $ev.TimeCreated
+  } catch { }
+  $res
+}
+
 function Get-Report {
   $os = Get-CimInstance Win32_OperatingSystem
+  $power = Part { Get-PowerOn } @{ power_on_time = ''; fast_startup = $null }
   $cs = Get-CimInstance Win32_ComputerSystem
   $user = Part { $cs.UserName } ''
   @{
@@ -169,6 +187,8 @@ function Get-Report {
     domain = $(if ($cs.PartOfDomain) { $cs.Domain } else { '' })
     logged_in_user = "$user"
     boot_time = (IsoUtc $os.LastBootUpTime)
+    power_on_time = $power.power_on_time
+    fast_startup = $power.fast_startup
     os = (Part { Get-OsInfo } @{})
     hardware = (Part { Get-HwInfo } @{})
     disks = @(Part { Get-Disks } @())

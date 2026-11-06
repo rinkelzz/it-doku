@@ -243,3 +243,20 @@ def test_placeholder_names_get_hostname(admin):
     admin.patch(f"/api/v1/devices/{d2['id']}", json={"name": "Server Praxis"})
     send(admin.get("/api/v1/agents").json() and admin.post(f"/api/v1/agents/{admin.get('/api/v1/agents').json()['agents'][0]['id']}/token").json()["token"])
     assert admin.get(f"/api/v1/devices/{d2['id']}").json()["name"] == "Server Praxis"
+
+
+def test_selfbuilt_pc_and_fast_startup(admin):
+    types = {t["name"]: t["id"] for t in admin.get("/api/v1/device-types").json()}
+    d = admin.post("/api/v1/devices", json={"name": "TIMSPC", "type_id": types["PC"], "manufacturer": "To Be Filled By O.E.M."}).json()
+    rep = copy.deepcopy(REPORT)
+    rep.update({"hostname": "TIMSPC", "boot_time": "2026-11-02T15:04:00Z", "power_on_time": "2026-11-06T17:10:00Z", "fast_startup": True})
+    rep["hardware"].update({"manufacturer": "To Be Filled By O.E.M.", "model": "To Be Filled By O.E.M.", "serial": "To Be Filled By O.E.M.",
+                            "board_manufacturer": "ASRock", "board_product": "B550 Pro4", "chassis": "desktop"})
+    rep["os"] = {"name": "Windows 11 Pro", "version": "24H2"}
+    tok = admin.post("/api/v1/agents", json={"name": "timspc"}).json()["token"]
+    assert send(tok, rep).json()["device_id"] == d["id"]
+    dev = admin.get(f"/api/v1/devices/{d['id']}").json()
+    assert (dev["manufacturer"], dev["model"], dev["serial"]) == ("ASRock", "B550 Pro4", "")
+    p = admin.get(f"/api/v1/devices/{d['id']}/agent").json()["report"]
+    assert p["power_on_time"] == "2026-11-06T17:10:00+00:00" and p["fast_startup"] is True
+    assert agents._hw_text("To Be Filled By O.E.M. B550 Pro4") == "B550 Pro4" and agents._hw_text("System Product Name") == ""

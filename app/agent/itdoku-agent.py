@@ -119,6 +119,7 @@ def linux_hw():
     if virt and virt != "none":
         chassis = "vm"
     return {"manufacturer": read(dmi + "sys_vendor"), "model": read(dmi + "product_name"),
+            "board_manufacturer": read(dmi + "board_vendor"), "board_product": read(dmi + "board_name"),
             "serial": read(dmi + "product_serial"), "cpu": cpu, "cores": cores or os.cpu_count(),
             "ram_mb": int(mem.group(1)) // 1024 if mem else None, "chassis": chassis,
             "virtual": bool(virt and virt != "none"), "bios": " ".join(x for x in (read(dmi + "bios_vendor"), read(dmi + "bios_version")) if x)}

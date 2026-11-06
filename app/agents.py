@@ -27,6 +27,21 @@ LIMITS = {"software": 5000, "services": 2000, "disks": 64, "interfaces": 64, "up
 # Seriennummern, die Hersteller als Platzhalter eintragen – damit darf nicht abgeglichen werden
 _BAD_SERIALS = {"", "0", "none", "n/a", "na", "default string", "to be filled by o.e.m.", "system serial number",
                 "not specified", "not applicable", "unknown", "0123456789", "123456789", "chassis serial number"}
+# Platzhalter bei Hersteller/Modell (v. a. selbst gebaute PCs: das BIOS lässt die Felder auf „To Be Filled By O.E.M.“)
+_BAD_HW = _BAD_SERIALS | {"system manufacturer", "system product name", "system version", "o.e.m.", "oem", "to be filled by oem",
+                          "default string default string", "type1productconfigid", "x.x"}
+
+
+def placeholder_hw(text: str) -> bool:
+    return (text or "").strip().lower().rstrip(".") in {x.rstrip(".") for x in _BAD_HW}
+
+
+def _hw_text(v: Any, n: int = 100) -> str:
+    """Platzhalter-Teile entfernen: „To Be Filled By O.E.M. B550 Pro4“ → „B550 Pro4“."""
+    text = _s(v, n)
+    for bad in ("To Be Filled By O.E.M.", "To be filled by O.E.M.", "System Product Name", "System manufacturer", "Default string"):
+        text = re.sub(re.escape(bad), "", text, flags=re.I).strip()
+    return "" if placeholder_hw(text) else re.sub(r"\s{2,}", " ", text)
 
 
 # --- Schlüssel --------------------------------------------------------------
@@ -150,11 +165,14 @@ def sanitize(raw: Dict[str, Any]) -> Dict[str, Any]:
         "hostname": _s(raw.get("hostname"), 100),
         "domain": _s(raw.get("domain"), 100),
         "boot_time": _date(raw.get("boot_time")),
+        "power_on_time": _date(raw.get("power_on_time")),
+        "fast_startup": _bool(raw.get("fast_startup")),
         "logged_in_user": _s(raw.get("logged_in_user"), 100),
         "os": {"name": _s(os_.get("name"), 120), "version": _s(os_.get("version"), 60), "build": _s(os_.get("build"), 60),
                "arch": _s(os_.get("arch"), 30), "kernel": _s(os_.get("kernel"), 80),
                "installed_on": _date(os_.get("installed_on"))},
-        "hardware": {"manufacturer": _s(hw.get("manufacturer"), 100), "model": _s(hw.get("model"), 100),
+        "hardware": {"manufacturer": _hw_text(hw.get("manufacturer")) or _hw_text(hw.get("board_manufacturer")),
+                     "model": _hw_text(hw.get("model")) or _hw_text(hw.get("board_product")),
                      "serial": _s(hw.get("serial"), 100), "cpu": _s(hw.get("cpu"), 150),
                      "cores": _int(hw.get("cores"), 1, 4096), "ram_mb": _int(hw.get("ram_mb"), 1, 1 << 30),
                      "chassis": _s(hw.get("chassis"), 20).lower(), "virtual": _bool(hw.get("virtual")),
@@ -343,8 +361,8 @@ def update_device(conn: sqlite3.Connection, device_id: int, agent: sqlite3.Row, 
         changes["os"] = (d["os"], label)
     for col, val in (("manufacturer", hw["manufacturer"]), ("model", hw["model"]),
                      ("serial", hw["serial"] if _good_serial(hw["serial"]) else "")):
-        if val and not d[col]:
-            changes[col] = ("", val[:100])
+        if val and (not d[col] or placeholder_hw(d[col]) or "o.e.m" in d[col].lower()) and d[col] != val[:100]:
+            changes[col] = (d[col], val[:100])
     if changes:
         sets = ", ".join(f"{k} = ?" for k in changes)
         conn.execute(f"UPDATE devices SET {sets}, updated_at = ? WHERE id = ?",

@@ -203,7 +203,12 @@ async function agentPanel(d, reload) {
   const kv = (pairs) => `<dl class="kv">${pairs.filter(([, v]) => v).map(([k, v, cls]) => `<dt>${k}</dt><dd${cls ? ` class="${cls}"` : ""}>${v}</dd>`).join("")}</dl>`;
   const hw = p.hardware || {}, u = p.updates || {}, os = p.os || {};
   const ips = (p.network.interfaces || []).flatMap(i => i.ipv4.concat(i.ipv6));
-  const bootDays = p.boot_time ? Math.floor((Date.now() - new Date(p.boot_time).getTime()) / 86400000) : null;
+  // Windows-Schnellstart: eingeschaltet (power_on_time) ist später als der letzte echte Neustart (boot_time)
+  const powerOn = p.power_on_time && p.boot_time && new Date(p.power_on_time) > new Date(p.boot_time) ? p.power_on_time : "";
+  const since = powerOn || p.boot_time;
+  const bootDays = since ? Math.floor((Date.now() - new Date(since).getTime()) / 86400000) : null;
+  const sinceText = (ts) => { const h = Math.round((Date.now() - new Date(ts).getTime()) / 3600000);
+    return h < 1 ? "weniger als 1 Stunde" : h < 24 ? `${h} Stunde${h === 1 ? "" : "n"}` : bootDays === 1 ? "1 Tag" : bootDays + " Tagen"; };
   const svc = p.services || [];
   const stopped = svc.filter(s => s.start === "auto" && (s.state === "stopped" || s.state === "failed"));
   const sub = (t) => `<span class="small" style="text-transform:none;letter-spacing:0;font-weight:400">${t}</span>`;
@@ -212,7 +217,9 @@ async function agentPanel(d, reload) {
       ${kv([["Rechnername", esc(p.hostname + (p.domain ? "." + p.domain : "")), "mono"], ["System", esc([os.name, os.build ? "Build " + os.build : "", os.arch].filter(Boolean).join(" · "))],
             ["CPU", esc([hw.cpu, hw.cores ? hw.cores + " Kerne" : ""].filter(Boolean).join(" · "))], ["Arbeitsspeicher", esc(ramText(hw.ram_mb))],
             ["Hardware", esc([hw.manufacturer, hw.model, hw.virtual ? "(virtuell)" : ""].filter(Boolean).join(" "))],
-            ["Läuft seit", bootDays != null ? `${bootDays === 0 ? "heute" : bootDays === 1 ? "1 Tag" : bootDays + " Tagen"} (Start ${esc(fmtDT(p.boot_time_local || p.boot_time))})` : ""],
+            ["Läuft seit", since ? (powerOn
+              ? `${sinceText(powerOn)} (eingeschaltet ${esc(fmtDT(powerOn))}) <span class="muted small" title="Bei aktivem Windows-Schnellstart ist Herunterfahren eigentlich Ruhezustand – Updates, die einen Neustart brauchen, greifen erst nach „Neu starten“.">· letzter echter Neustart ${esc(fmtDT(p.boot_time))} (Schnellstart)</span>`
+              : `${sinceText(since)} (Start ${esc(fmtDT(p.boot_time))})${p.fast_startup ? ' <span class="muted small">· Schnellstart an</span>' : ""}`) : ""],
             ["Angemeldet", esc(p.logged_in_user)]])}
       ${kv([["Updates", u.pending == null ? (u.error ? `<span class="muted">${esc(u.error)}</span>` : "") :
               (u.pending ? `<span class="tag warn">${u.pending} ausstehend</span>${u.security ? ` <span class="tag bad">${u.security} Sicherheit</span>` : ""}` : '<span class="tag okk">aktuell</span>')
@@ -221,7 +228,7 @@ async function agentPanel(d, reload) {
             ["IP-Adressen", esc(ips.join(" · ")), "mono"],
             ["Gateway / DNS", esc([(p.network.gateway || []).join(", "), (p.network.dns || []).join(", ")].filter(Boolean).join(" · ")), "mono"]])}
     </div>
-    ${u.items && u.items.length ? `<details class="more"><summary>${u.items.length} ausstehende Updates</summary><ul class="small">${u.items.map(x => `<li>${esc(x)}</li>`).join("")}</ul></details>` : ""}
+    ${u.items && u.items.length ? `<details class="more"><summary>${u.items.length === 1 ? "1 ausstehendes Update" : u.items.length + " ausstehende Updates"}</summary><ul class="small">${u.items.map(x => `<li>${esc(x)}</li>`).join("")}</ul></details>` : ""}
     <div class="sect">Datenträger</div>
     ${(p.disks || []).map(dk => {
       const used = dk.free_gb == null ? 0 : Math.round(100 * (1 - dk.free_gb / dk.total_gb));
