@@ -78,12 +78,27 @@ def current_user(request: Request, conn: sqlite3.Connection = Depends(get_db)) -
         if not user:
             raise HTTPException(status.HTTP_403_FORBIDDEN, error)
         request.state.via_dsm = True
+        _vault_activity(request, f"dsm:{user['id']}")
         return user
     token = request.headers.get(SESSION_HEADER) or request.cookies.get(SESSION_COOKIE)
     user = _user_from_session(conn, token) if token else None
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Nicht angemeldet")
+    _vault_activity(request, "s:" + _sha256(token))
     return user
+
+
+def vault_sid_for_token(token: str) -> str:
+    return "s:" + _sha256(token)
+
+
+def _vault_activity(request: Request, sid: str) -> None:
+    """Der Tresor gehört zur Sitzung; jede Anfrage zählt als Aktivität (Auto-Sperre)."""
+    from . import vault
+    request.state.vault_sid = sid
+    if request.url.path.rstrip("/").endswith("/vault/status"):
+        return  # Statusabfragen der Oberfläche halten den Tresor nicht offen
+    vault.touch(sid)
 
 
 def admin_user(user: sqlite3.Row = Depends(current_user)) -> sqlite3.Row:

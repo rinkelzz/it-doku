@@ -159,7 +159,7 @@ def mail_test(data: MailTestIn, admin=Depends(admin_user), conn: sqlite3.Connect
 
 # --- Änderungsprotokoll -------------------------------------------------------
 
-AUDIT_CATEGORIES = {"doku": "Dokumentation", "anmeldung": "Anmeldung", "benutzer": "Benutzer", "einstellungen": "Einstellungen",
+AUDIT_CATEGORIES = {"doku": "Dokumentation", "tresor": "Tresor", "anmeldung": "Anmeldung", "benutzer": "Benutzer", "einstellungen": "Einstellungen",
                     "sicherung": "Datensicherung"}
 AUDIT_ACTIONS = {
     "doc_created": ("doku", "Angelegt"),
@@ -167,6 +167,18 @@ AUDIT_ACTIONS = {
     "doc_deleted": ("doku", "Gelöscht"),
     "file_added": ("doku", "Anhang hinzugefügt"),
     "file_deleted": ("doku", "Anhang gelöscht"),
+    "secret_shown": ("tresor", "Geheimnis angezeigt"),
+    "secret_copied": ("tresor", "Geheimnis kopiert"),
+    "vault_setup": ("tresor", "Tresor eingerichtet"),
+    "vault_failed": ("tresor", "Fehlversuch"),
+    "vault_password": ("tresor", "Tresor-Passwort geändert"),
+    "vault_recovery_used": ("tresor", "Notfall-Schlüssel benutzt"),
+    "vault_recovery_renewed": ("tresor", "Notfall-Schlüssel erneuert"),
+    "vault_invited": ("tresor", "Zum Tresor eingeladen"),
+    "vault_invite_revoked": ("tresor", "Einladung zurückgezogen"),
+    "vault_joined": ("tresor", "Einladung angenommen"),
+    "vault_access_removed": ("tresor", "Tresor-Zugang entzogen"),
+    "vault_settings": ("tresor", "Tresor-Einstellungen geändert"),
     "login": ("anmeldung", "Anmeldung"),
     "password_changed": ("anmeldung", "Passwort geändert"),
     "profile_updated": ("benutzer", "Eigenes Profil geändert"),

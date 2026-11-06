@@ -112,6 +112,9 @@ def login(data: LoginIn, request: Request, response: Response, conn: sqlite3.Con
 def logout(request: Request, response: Response, conn: sqlite3.Connection = Depends(get_db)):
     token = request.headers.get(SESSION_HEADER) or request.cookies.get(SESSION_COOKIE)
     if token:
+        from .. import vault
+        from ..security import vault_sid_for_token
+        vault.close(vault_sid_for_token(token))
         delete_session(conn, token)
     response.delete_cookie(SESSION_COOKIE, path=settings.root_path or "/")
     return {"ok": True}

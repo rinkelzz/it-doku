@@ -25,7 +25,7 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
   auf derselben NAS (127.0.0.1) kommt. Bei einem Proxy auf einem anderen Gerät sieht die App dessen Adresse –
   die Login-Sperre greift dann nur noch pro Benutzername.
 - **Keine Klartext-Zugangsdaten in Sicherungen:** Das SMTP-Passwort wird vor dem Sichern entfernt (inklusive
-  `VACUUM`, damit es auch nicht in freien Seiten der Datei steht). Der Tresor (ab 0.3) liegt darin nur verschlüsselt.
+  `VACUUM`, damit es auch nicht in freien Seiten der Datei steht). Der Tresor liegt darin nur verschlüsselt.
 - **Anhänge** (Netzwerkplan, Rechnungen, Fotos): nur PNG, JPG und PDF, erkannt am **Inhalt** (SVG/HTML werden
   abgelehnt), höchstens 10 MB, schon beim Empfang begrenzt. Hochladen und Löschen nur mit Vollzugriff. Ausgeliefert
   mit `X-Content-Type-Options: nosniff` und `Content-Security-Policy: sandbox`; PDFs immer als Download.
@@ -34,18 +34,29 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
 - **CSV-Exporte** entschärfen Zellen, die mit `=`, `+`, `-`, `@`, Tab oder CR beginnen (Formel-Injection).
 - **Paketquelle** (`/spk`) nur aus dem lokalen Netz erreichbar.
 
-## Tresor (ab Version 0.3)
+## Tresor
 
-- Zugangsdaten und Lizenzschlüssel werden mit einem zufälligen Datenschlüssel verschlüsselt (AES-256-CTR mit
-  HMAC-SHA-256 als Echtheitsprüfung, reines Python). Der Datenschlüssel liegt nur verschlüsselt in der Datenbank:
-  einmal pro Benutzer mit dessen **Tresor-Passwort** (PBKDF2-SHA-256) und einmal mit dem **Notfall-Schlüssel**.
-- Tresor-Passwörter und Notfall-Schlüssel werden nirgends gespeichert. Wer beides verliert, verliert die
-  Zugangsdaten. Den Notfall-Schlüssel deshalb ausgedruckt sicher verwahren.
-- Der entschlüsselte Datenschlüssel liegt nur im Arbeitsspeicher der App und gehört zur Sitzung. Nach einiger Zeit
-  ohne Aktivität sperrt sich der Tresor. Solange er offen ist, könnte jemand mit Root-Zugriff auf die NAS ihn aus dem
-  Speicher lesen – der Tresor schützt vor allem Datenbankdatei und Sicherungen.
-- Benutzer mit **Lesen** sehen nie Zugangsdaten oder Lizenzschlüssel.
-- Jedes Anzeigen und Kopieren eines Passworts wird protokolliert.
+- Zugangsdaten (Passwort, Notiz, 2FA-Geheimnis) und Lizenzschlüssel werden mit einem zufälligen 256-Bit-Datenschlüssel
+  verschlüsselt: AES-256-CTR mit zufälliger Nonce, HMAC-SHA-256 über Version, Nonce, Geheimtext und Feldkennung
+  (Encrypt-then-MAC; getrennte Schlüssel für Verschlüsselung und HMAC). Die Feldkennung (z. B. `cred:12:password`)
+  verhindert, dass Geheimtexte zwischen Einträgen vertauscht werden. AES ist in reinem Python umgesetzt (keine nativen
+  Bibliotheken) und wird gegen die Testvektoren aus FIPS-197 und NIST SP 800-38A geprüft.
+- Der Datenschlüssel liegt nur verschlüsselt in der Datenbank: pro Benutzer mit dessen **Tresor-Passwort**
+  (PBKDF2-SHA-256, 600 000 Runden, eigenes Salz), mit dem **Notfall-Schlüssel** (256 Bit) und befristet mit
+  **Einladungscodes** (80 Bit, 7 Tage). Tresor-Passwörter, Notfall-Schlüssel und Codes werden nirgends gespeichert.
+- Geöffnet liegt der Datenschlüssel nur im Arbeitsspeicher der App, gebunden an die Sitzung, und verfällt nach X Minuten
+  ohne Aktivität, beim Sperren, Abmelden, Wiederherstellen einer Sicherung und beim Neustart. Im DSM-Fenster (Single
+  Sign-on) gehört der offene Tresor zum DSM-Benutzer, gilt also für alle seine DSM-Fenster.
+- Solange der Tresor offen ist, könnte jemand mit Root-Zugriff auf die NAS den Schlüssel aus dem Speicher lesen. Der
+  Tresor schützt vor allem Datenbankdatei, Sicherungen und Benutzer ohne Tresor-Zugang.
+- Entsperren, Einladung und Notfall-Schlüssel: höchstens 5 Fehlversuche in 15 Minuten, jeder Fehlversuch steht im
+  Protokoll. Jedes Anzeigen und Kopieren eines Geheimnisses wird mit Benutzer und Zeitpunkt protokolliert.
+- Benutzer mit **Lesen** bekommen keine Zugangsdaten – weder über die Oberfläche noch über die Schnittstelle, die Suche
+  oder „Zuletzt geändert“. Wer den Vollzugriff verliert oder deaktiviert wird, verliert sofort den Tresor-Zugang.
+- **Zugang entziehen wechselt den Datenschlüssel nicht.** Wer früher Zugang hatte und eine alte Sicherung samt
+  seinem damaligen Tresor-Passwort besitzt, könnte die darin enthaltenen Einträge lesen. Nach dem Entziehen deshalb die
+  wichtigen Passwörter ändern.
+- Der Passwort-Generator läuft im Browser (`crypto.getRandomValues`, ohne Verzerrung).
 
 ## Hinweise für den Betrieb
 

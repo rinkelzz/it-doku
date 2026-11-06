@@ -14,11 +14,12 @@ from .network import list_networks, list_sites
 router = APIRouter(prefix="/api/v1", tags=["Übersicht & Suche"])
 
 
-def recent_changes(conn: sqlite3.Connection, limit: int = 8) -> list:
+def recent_changes(conn: sqlite3.Connection, limit: int = 8, with_credentials: bool = False) -> list:
     acts = list(DOC_ACTIONS)
     rows = conn.execute(
         f"SELECT a.ts, a.action, a.target, a.details, u.display_name AS actor FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id "
         f"WHERE a.action IN ({','.join('?' * len(acts))}) AND a.target NOT LIKE 'ip:%' AND a.target NOT LIKE 'type:%' "
+        f"{'' if with_credentials else ' AND a.target NOT LIKE ' + chr(39) + 'credential:%' + chr(39)} "
         f"ORDER BY a.id DESC LIMIT ?", acts + [limit]).fetchall()
     out = []
     for r in rows:
@@ -54,7 +55,7 @@ def overview(site_id: Optional[int] = None, user=Depends(current_user), conn: sq
             "SELECT id, name, company, role, phone, mobile, external FROM contacts WHERE emergency = 1 "
             "ORDER BY external, name COLLATE NOCASE")],
         "sites": list_sites(user=user, conn=conn),
-        "recent": recent_changes(conn),
+        "recent": recent_changes(conn, with_credentials=bool(user["is_admin"])),
     }
 
 
@@ -90,6 +91,9 @@ def search(q: str = Query(..., min_length=1, max_length=100), user=Depends(curre
         "ORDER BY name COLLATE NOCASE LIMIT 8", [like] * 3)]
     out["networks"] = [dict(r) for r in conn.execute(
         "SELECT id, name, cidr, vlan, site_id FROM networks WHERE name LIKE ? OR cidr LIKE ? LIMIT 8", [like, like])]
+    out["credentials"] = [dict(r) for r in conn.execute(
+        "SELECT id, title, username, url, owner_type, owner_id FROM credentials WHERE title LIKE ? OR username LIKE ? OR url LIKE ? "
+        "ORDER BY title COLLATE NOCASE LIMIT 8", [like] * 3)] if user["is_admin"] else []
     out["sites"] = [dict(r) for r in conn.execute(
         "SELECT id, name, address FROM sites WHERE name LIKE ? OR address LIKE ? OR isp_customer_no LIKE ? OR isp_public_ip LIKE ? LIMIT 8",
         [like] * 4)]

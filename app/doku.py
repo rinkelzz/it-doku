@@ -18,6 +18,7 @@ KINDS = {
     "network": ("networks", "Netz", "🌐"),
     "ip": ("ip_addresses", "IP-Adresse", "🔢"),
     "type": ("device_types", "Gerätetyp", "🏷️"),
+    "credential": ("credentials", "Zugang", "🔐"),
 }
 
 DEVICE_STATUS = {"active": "aktiv", "stock": "im Lager", "retired": "ausgemustert"}
@@ -118,7 +119,8 @@ def history(conn: sqlite3.Connection, kind: str, item_id: int, limit: int = 30) 
         text = r["details"] or ""
         text = text.split(" – ", 1)[1] if " – " in text else ""
         out.append({"ts_local": local_iso(r["ts"]), "actor": r["actor"] or "System",
-                    "label": "" if r["action"].startswith("file_") else DOC_ACTIONS.get(r["action"], r["action"]), "text": text})
+                    "label": "" if r["action"].startswith(("file_", "secret_")) else DOC_ACTIONS.get(r["action"], r["action"]),
+                    "text": text})
     return out
 
 

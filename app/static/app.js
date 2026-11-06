@@ -41,8 +41,12 @@ async function api(path, opts = {}) {
   const data = (res.headers.get("content-type") || "").includes("json") ? await res.json() : null;
   if (!res.ok) {
     const d = data && data.detail;
-    throw new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map(x => x.msg).join(", ") : "Fehler " + res.status);
+    const err = new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map(x => x.msg).join(", ") : "Fehler " + res.status);
+    err.status = res.status;
+    if (res.status === 423 && window.vaultLocked) window.vaultLocked();
+    throw err;
   }
+  if (window.vaultTouch && !path.startsWith("vault/")) window.vaultTouch();
   return data;
 }
 async function downloadFile(path, fallbackName) {
@@ -69,8 +73,8 @@ const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { ret
                 set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* egal */ } } };
 
 // ---------- Start, Anmeldung, Reiter ----------
-const TABS = ["home", "devices", "network", "licenses", "contacts", "admin", "me"];
-const DOC_TABS = ["home", "devices", "network", "licenses", "contacts"];
+const TABS = ["home", "devices", "network", "licenses", "contacts", "vault", "admin", "me"];
+const DOC_TABS = ["home", "devices", "network", "licenses", "contacts", "vault"];
 const firstTab = () => "home";
 function showLogin() {
   $("appView").classList.add("hidden"); $("loginView").classList.remove("hidden");
@@ -108,11 +112,12 @@ async function start() {
   if (window.itdTheme) itdTheme(state.me.theme_effective || "classic");
   $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden");
   showMe();
+  if (window.vaultInit) vaultInit();
   $("httpWarn").classList.toggle("hidden", !state.me.insecure_http);
   applyMode();
   const [wanted, sec] = ((location.hash || "").slice(1) || store.get("tab") || firstTab()).split("/");
   if (sec && wanted === "admin") store.set("asec", sec);
-  await showTab(TABS.includes(wanted) && (wanted !== "admin" || isAdmin()) ? wanted : firstTab(), wanted === "admin" ? "" : sec);
+  await showTab(TABS.includes(wanted) && (!["admin", "vault"].includes(wanted) || isAdmin()) ? wanted : firstTab(), wanted === "admin" ? "" : sec);
 }
 
 function showMe() {
@@ -136,7 +141,7 @@ async function showTab(name, sub) {
 }
 
 // ---------- Verwaltung ----------
-const ADMIN_SECS = ["benutzer", "stammdaten", "einstellungen", "mail", "system", "protokoll"];
+const ADMIN_SECS = ["benutzer", "stammdaten", "tresor", "einstellungen", "mail", "system", "protokoll"];
 function showAdminSec(key) {
   if (!ADMIN_SECS.includes(key)) key = "einstellungen";
   $$("#adminNav [data-asec]").forEach(b => b.classList.toggle("active", b.dataset.asec === key));
@@ -155,6 +160,7 @@ async function loadAdmin() {
   showUsers();
   jobs.push(initAudit().catch(e => { $("alErr").textContent = e.message; }));
   if (window.loadStammdaten) jobs.push(loadStammdaten().catch(e => { $("siteErr").textContent = e.message; }));
+  if (window.loadVaultAdmin) jobs.push(loadVaultAdmin().catch(e => { $("vaErr").textContent = e.message; }));
   await Promise.all(jobs);
 }
 

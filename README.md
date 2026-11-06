@@ -11,8 +11,8 @@ Lizenzen, Netzwerkplan und Zugangsdaten (verschlüsselt im Tresor). Sie läuft a
 eigenem Fenster in DSM. Die Daten bleiben beim Kunden; der IT-Dienstleister und eine Vertrauensperson beim Kunden
 haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 
-> **Stand 0.2:** Geräte, Netzwerk, Lizenzen und Ansprechpartner sind da. Zugangsdaten im verschlüsselten Tresor
-> folgen mit 0.3 – siehe [Fahrplan](#fahrplan).
+> **Stand 0.3:** Geräte, Netzwerk, Lizenzen, Ansprechpartner und Zugangsdaten im verschlüsselten Tresor
+> (mit 2FA-Codes und Notfall-Schlüssel) sind da – siehe [Fahrplan](#fahrplan).
 
 ![Übersicht](docs/screenshots/uebersicht.png)
 
@@ -20,7 +20,7 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 
 - [Funktionen](#funktionen)
 - [Rechte](#rechte)
-- [Tresor für Zugangsdaten (geplant)](#tresor-für-zugangsdaten-geplant)
+- [Tresor für Zugangsdaten](#tresor-für-zugangsdaten)
 - [Fahrplan](#fahrplan)
 - [Installation auf der Synology](#installation-auf-der-synology)
 - [Updates über das Paket-Zentrum](#updates-über-das-paket-zentrum)
@@ -58,7 +58,7 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 
 - **Eigenes Fenster in DSM** mit Single Sign-on: DSM-Administratoren sind ohne weitere Anmeldung drin.
 - **Anmeldung** mit eigenem Konto oder DSM-Konto (inklusive Zwei-Faktor-Code), Login-Sperre gegen Durchprobieren.
-- **Benutzer** mit **Vollzugriff** oder **nur Lesen**.
+- **Benutzer** mit **Vollzugriff** oder **nur Lesen** (sieht nie Zugangsdaten).
 - **Firmenname und Logo** des Kunden in Kopfzeile und Anmeldung, vier Designs (Klassisch, Synology DSM, Dunkel,
   Warm & groß), für Handy und Desktop.
 - **Nächtliche Datensicherung** in einen freigegebenen Ordner (für Hyper Backup), Wiederherstellen per Klick.
@@ -83,19 +83,32 @@ Ein DSM-Konto kommt nur hinein, wenn es DSM-Administrator ist (dann mit Vollzugr
 IT-Dokumentation ein Benutzer mit gleichem Namen angelegt ist. Beides lässt sich unter **Verwaltung → Einstellungen**
 ändern.
 
-## Tresor für Zugangsdaten (geplant)
+## Tresor für Zugangsdaten
 
-Zugangsdaten und Lizenzschlüssel liegen ab Stufe 2 verschlüsselt in der Datenbank:
+| Zugangsdaten | Neuer Zugang | Gerät, Tresor gesperrt |
+|---|---|---|
+| ![Zugangsdaten](docs/screenshots/tresor-zugangsdaten.png) | ![Neuer Zugang](docs/screenshots/tresor-neuer-zugang.png) | ![Gerät](docs/screenshots/tresor-geraet-gesperrt.png) |
+| **Notfall-Schlüssel** | **Verwaltung → Tresor** | |
+| ![Notfall-Schlüssel](docs/screenshots/tresor-notfall-schluessel.png) | ![Verwaltung](docs/screenshots/tresor-verwaltung.png) | |
 
-- Ein zufälliger **Datenschlüssel** verschlüsselt die Einträge (AES-256 mit HMAC-SHA-256 als Echtheitsprüfung, in
-  reinem Python – ohne native Bibliotheken).
-- Jeder Benutzer mit Vollzugriff hat ein **eigenes Tresor-Passwort**, das den Datenschlüssel verschlüsselt
-  (PBKDF2-SHA-256). Es wird nirgends gespeichert. Neue Benutzer schaltet jemand mit geöffnetem Tresor frei.
-- Bei der Einrichtung entsteht ein **Notfall-Schlüssel zum Ausdrucken** – für den Firmentresor des Kunden.
-  Ohne Tresor-Passwort und ohne Notfall-Schlüssel sind die Zugangsdaten nicht wiederherstellbar. Das ist gewollt.
-- Der geöffnete Schlüssel liegt nur im Arbeitsspeicher und sperrt sich nach einiger Zeit ohne Aktivität.
-- Jedes Anzeigen und Kopieren eines Passworts steht im Änderungsprotokoll.
-- In der Datensicherung liegt der Tresor nur verschlüsselt.
+- **Was ist verschlüsselt?** Passwort, Notiz und 2FA-Geheimnis jedes Zugangs sowie Lizenzschlüssel. Titel,
+  Benutzername, Adresse und Zuordnung bleiben lesbar, damit Liste und Suche auch bei gesperrtem Tresor funktionieren.
+- **Wie?** Ein zufälliger **Datenschlüssel** verschlüsselt die Einträge (AES-256-CTR mit HMAC-SHA-256, in reinem
+  Python – ohne native Bibliotheken). In der Datenbank liegt er nur verschlüsselt: einmal pro Benutzer mit dessen
+  **Tresor-Passwort** (PBKDF2-SHA-256, 600 000 Runden) und einmal mit dem **Notfall-Schlüssel**.
+- **Einrichten:** oben rechts **🔒 Tresor → einrichten** → Tresor-Passwort festlegen → **Notfall-Schlüssel** als PDF
+  herunterladen, ausdrucken und sicher verwahren (z. B. im Firmentresor). Ohne Tresor-Passwort und ohne
+  Notfall-Schlüssel sind die Zugangsdaten nicht wiederherstellbar. Das ist gewollt.
+- **Weitere Personen** (nur mit Vollzugriff): **Verwaltung → Tresor → Freischalten** erzeugt einen Einladungscode
+  (7 Tage gültig). Die Person legt damit ihr **eigenes** Tresor-Passwort fest – du erfährst es nie.
+- **Auto-Sperre** nach 15 Minuten ohne Aktivität (einstellbar 5–60), beim Abmelden und beim Neustart der App.
+- **Anzeigen und Kopieren** wird protokolliert. Kopierte Passwörter werden nach 30 Sekunden aus der Zwischenablage
+  gelöscht, soweit der Browser es erlaubt.
+- **2FA-Codes:** Base32-Geheimnis oder `otpauth://`-Link (aus dem QR-Code) hinterlegen – die App zeigt den aktuellen
+  sechsstelligen Code.
+- **Passwort vergessen?** Im Entsperren-Dialog mit dem Notfall-Schlüssel ein neues Tresor-Passwort setzen.
+- **Sicherungen** enthalten den Tresor nur verschlüsselt. Nach einem Wiederherstellen (auch auf einer neuen NAS)
+  öffnen die bisherigen Tresor-Passwörter und der Notfall-Schlüssel ihn wie gewohnt.
 
 ## Fahrplan
 
@@ -103,9 +116,9 @@ Zugangsdaten und Lizenzschlüssel liegen ab Stufe 2 verschlüsselt in der Datenb
 |---|---|
 | **0.1** ✔ | Fundament: SPK, DSM-Fenster, Single Sign-on, Benutzer, Sicherung, Updates, Protokoll |
 | **0.2** ✔ | Stammdaten: Standorte, Ansprechpartner, Geräte mit frei pflegbaren Typen und Verbindungen, Lizenzen inkl. Domains und Zertifikate, Netze/VLANs mit IP-Liste, Netzwerkplan, Internetanschluss, Anhänge, Verlauf, globale Suche |
-| 0.3 | Tresor: Zugangsdaten mit Tresor-Passwort, Notfall-Schlüssel, Auto-Sperre, Kopieren-Knopf, Passwort-Generator, verschlüsselte Lizenzschlüssel |
+| **0.3** ✔ | Tresor: Zugangsdaten mit Tresor-Passwort pro Benutzer, Einladungscode, Notfall-Schlüssel als PDF, Auto-Sperre, Anzeigen/Kopieren mit Protokoll, Passwort-Generator, 2FA-Codes (TOTP), verschlüsselte Lizenzschlüssel |
 | 0.4 | Komfort: Sammel-Mail zu ablaufenden Lizenzen, Garantien, Zertifikaten und Domains; PDF „Notfall-Handbuch“ (ohne und – bei geöffnetem Tresor – mit Passwörtern); CSV-Import für Geräte |
-| später | 2FA-Codes (TOTP) im Tresor, Netzwerk-Scan, Wiki-Seiten für Anleitungen, Verknüpfung mit dem Helpdesk aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) |
+| später | Netzwerk-Scan, Wiki-Seiten für Anleitungen, Verknüpfung mit dem Helpdesk aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) |
 
 ## Installation auf der Synology
 
@@ -211,8 +224,10 @@ customer's own NAS, in its own DSM window with single sign-on. The user interfac
 - 0.2 (documentation): overview with upcoming expiries and emergency contacts, devices with custom types, links,
   attachments and history, networks/VLANs with IP list and network diagram, internet connection, licenses incl.
   domains and certificates, contacts, global search.
-- Planned: credential vault with per-user vault passwords and a printable recovery key (0.3),
-  expiry reminders, emergency handbook PDF and CSV import (0.4).
+- 0.3 (vault): credentials (password, notes, TOTP secret) and license keys encrypted with a random data key
+  (AES-256-CTR + HMAC-SHA-256, pure Python), wrapped per user with a vault password (PBKDF2) and with a printable
+  recovery key; invitation codes, auto-lock, audited show/copy, password generator, TOTP codes.
+- Planned: expiry reminders, emergency handbook PDF and CSV import (0.4).
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/it-doku/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.

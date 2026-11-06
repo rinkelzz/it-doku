@@ -720,3 +720,58 @@ textarea { font: inherit; padding: 7px 10px; border: 1px solid var(--line); bord
 .hist:last-child { border-bottom: none; }
 .hist small { color: var(--muted); font-size: 12px; }
 .sect label, .sect button { text-transform: none; letter-spacing: 0; }
+
+/* ===================== Tresor (0.3) ===================== */
+.vchip { display: flex; align-items: center; gap: 8px; padding: 3px 4px 3px 12px; border-radius: 999px; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+.vchip.open { background: color-mix(in srgb, var(--ok) 12%, var(--card)); border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent); color: var(--ok); }
+.vchip.closed { background: var(--bg); border: 1px solid var(--line); color: var(--muted); }
+.vchip button { border-radius: 999px; padding: 2px 10px; font-size: 12.5px; }
+.vchip b { font-variant-numeric: tabular-nums; }
+.cred { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 11px 4px; border-bottom: 1px solid var(--line); }
+.cred:last-of-type { border-bottom: none; }
+.cred > .ti { margin-top: 2px; }
+.cred b { display: block; overflow-wrap: anywhere; }
+.cred small { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.cred small a { color: var(--muted); }
+.secret { display: grid; grid-template-columns: 80px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; font-size: 14px; margin: 6px 0 0; }
+.secret:empty { display: none; }
+.secret dt { color: var(--muted); font-size: 13px; }
+.secret dd { margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; overflow-wrap: anywhere; min-width: 0; }
+.secret .acts { display: flex; gap: 4px; }
+.secret .acts button { padding: 2px 8px; font-size: 13px; }
+.mask { letter-spacing: 2px; color: var(--muted); }
+.totp { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; letter-spacing: 2px; color: var(--text); }
+.ring { width: 16px; height: 16px; border-radius: 50%; background: conic-gradient(var(--accent) 0 var(--p, 60%), var(--line) var(--p, 60%) 100%); }
+.lockbox { border: 1px dashed var(--line); border-radius: 12px; padding: 18px; text-align: center; display: grid; gap: 8px; justify-items: center; }
+.lockbox .big { font-size: 30px; }
+.gen { display: grid; gap: 6px; background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+.gen .row label { color: var(--text); }
+.pwrow { display: flex; gap: 6px; }
+.pwrow input { flex: 1; font-family: ui-monospace, Menlo, Consolas, monospace; min-width: 0; }
+.strength { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; } .strength i { display: block; height: 100%; transition: width .2s; }
+.rkey { font: 600 19px/1.6 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 1px; text-align: center; background: var(--bg);
+        border: 2px dashed var(--warn); border-radius: 12px; padding: 14px; overflow-wrap: anywhere; user-select: all; }
+.warnbox { background: #fef3c7; color: #78350f; border: 1px solid #f59e0b; border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+html.dark .warnbox { background: #422006; color: #fde68a; border-color: #b45309; }
+.credpanel .cred { grid-template-columns: auto minmax(0, 1fr); }
+.credpanel .cred > [data-cedit] { grid-column: 2; justify-self: start; }
+.credpanel .secret { grid-template-columns: 62px minmax(0, 1fr) auto; }
+@media (max-width: 720px) {
+  .vchip { order: 1; }
+  .vchip > span { display: none; }
+  .secret { grid-template-columns: 70px minmax(0, 1fr) auto; }
+}
+@media (max-width: 1560px) and (min-width: 721px) {
+  header { flex-wrap: nowrap; gap: 10px; }
+  header nav { flex-wrap: nowrap; gap: 0; }
+  header nav button { padding: 8px 7px; }
+  .vchip .vl { display: none; }
+  .userchip .lbl { display: none; }
+  .hsearch { min-width: 130px; }
+}
+@media (max-width: 1340px) and (min-width: 721px) {
+  header { flex-wrap: wrap; }
+  .hsearch { order: 5; flex-basis: 100%; max-width: none; }
+}
+.brand > span { white-space: nowrap; }
+.mask { white-space: nowrap; }

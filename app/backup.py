@@ -218,7 +218,9 @@ def delete(conn: sqlite3.Connection, names: List[str], actor_id: Optional[int] =
 
 
 def restore(name: str, actor_id: Optional[int] = None) -> Dict:
-    """Sicherung zurückspielen. Vorher wird der aktuelle Stand gesichert."""
+    """Sicherung zurückspielen. Vorher wird der aktuelle Stand gesichert. Offene Tresore werden gesperrt."""
+    from . import vault
+    vault.close_all()
     conn = connect()
     try:
         path = find(conn, name)

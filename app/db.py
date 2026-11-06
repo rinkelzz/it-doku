@@ -220,9 +220,49 @@ CREATE INDEX IF NOT EXISTS idx_att_owner ON attachments(owner_type, owner_id);
         conn.execute("INSERT INTO sites(name, created_at) VALUES ('Hauptstandort', ?)", (now_utc_str(),))
 
 
+def _m3_tresor(conn: sqlite3.Connection) -> None:
+    """Version 0.3: Tresor – verschlüsselte Schlüssel pro Benutzer, Notfall-Schlüssel, Einladungen, Zugangsdaten."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS vault_keys (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind         TEXT NOT NULL,                 -- user | recovery | invite
+    user_id      INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    salt         TEXT NOT NULL,
+    iterations   INTEGER NOT NULL,
+    wrapped      TEXT NOT NULL,                 -- Datenschlüssel, verschlüsselt mit dem Schlüssel aus Passwort/Code
+    created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at   TEXT NOT NULL,
+    expires_at   TEXT,                          -- nur Einladungen
+    last_used_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vault_user ON vault_keys(kind, user_id) WHERE kind IN ('user', 'invite');
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vault_recovery ON vault_keys(kind) WHERE kind = 'recovery';
+
+CREATE TABLE IF NOT EXISTS credentials (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    title                TEXT NOT NULL,
+    username             TEXT NOT NULL DEFAULT '',
+    url                  TEXT NOT NULL DEFAULT '',
+    owner_type           TEXT,                  -- device | license | site | contact | NULL (allgemein)
+    owner_id             INTEGER,
+    password_enc         TEXT,                  -- verschlüsselt (Tresor)
+    notes_enc            TEXT,
+    totp_enc             TEXT,
+    password_changed_at  TEXT,
+    created_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at           TEXT NOT NULL,
+    updated_at           TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_cred_owner ON credentials(owner_type, owner_id);
+""")
+    if "key_enc" not in _columns(conn, "licenses"):
+        conn.execute("ALTER TABLE licenses ADD COLUMN key_enc TEXT")  # Lizenzschlüssel, verschlüsselt
+
+
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_stammdaten,
+    3: _m3_tresor,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
@@ -250,6 +290,8 @@ DEFAULT_SETTINGS = {
     "backup_hour": "2",
     "backup_keep_days": "30",
     "backup_dir": "",              # z. B. /volume1/backup/it-doku
+    # Tresor: nach so vielen Minuten ohne Aktivität sperren
+    "vault_timeout_min": "15",
 }
 
 

@@ -35,8 +35,10 @@
     <button data-tab="network">Netzwerk</button>
     <button data-tab="licenses">Lizenzen</button>
     <button data-tab="contacts">Kontakte</button>
+    <button data-tab="vault" class="admin hidden">Zugangsdaten</button>
     <button data-tab="admin" class="admin hidden">Verwaltung</button>
   </nav>
+  <span class="vchip hidden" id="vchip"></span>
   <button class="userchip" id="userChip" data-tab="me" title="Mein Zugang"><span class="av" id="userAv"></span><span class="lbl" id="userName"></span></button>
 </header>
 
@@ -98,6 +100,7 @@
           <div class="row admin hidden"><label class="btn mini" style="display:inline-block">Hochladen <input type="file" id="diagFile" accept="image/png,image/jpeg,application/pdf" hidden></label>
             <button class="mini danger hidden" id="diagDel">Entfernen</button></div></div>
           <div id="diagBox"></div><div class="err" id="diagErr"></div></div>
+        <div class="card admin hidden" id="siteCreds"></div>
         <div class="card"><div class="toolbar" style="margin-bottom:8px"><h3 style="margin:0 !important">Internetanschluss</h3>
           <button class="mini admin hidden" id="ispEdit">Bearbeiten</button></div><div id="ispBox"></div></div>
       </aside>
@@ -118,6 +121,24 @@
     <div id="licDetail" class="hidden"></div>
   </div>
 
+  <!-- ZUGANGSDATEN -->
+  <div data-page="vault" class="page hidden">
+    <div class="split">
+      <aside class="card side" id="crSide"></aside>
+      <section class="card">
+        <select id="crMobileSel" class="mobileOnly" aria-label="Filter"></select>
+        <div class="toolbar"><h2 id="crTitle">Zugangsdaten</h2>
+          <div class="row"><input id="crQ" type="search" placeholder="Filtern …" style="width:200px" maxlength="100">
+            <button class="primary" id="crNew">＋ Zugang</button></div></div>
+        <div id="crBanner"></div>
+        <div id="crList"></div>
+        <p class="muted small" style="margin:10px 0 0">Kopierte Passwörter werden nach 30 Sekunden aus der Zwischenablage gelöscht, soweit der Browser es
+          erlaubt. Jedes Anzeigen und Kopieren steht im Änderungsprotokoll.</p>
+        <div class="err" id="crErr"></div>
+      </section>
+    </div>
+  </div>
+
   <!-- KONTAKTE -->
   <div data-page="contacts" class="page hidden">
     <section class="card">
@@ -134,6 +155,7 @@
     <nav class="subnav" id="adminNav" aria-label="Verwaltung">
       <button data-asec="benutzer">👥 Benutzer</button>
       <button data-asec="stammdaten">🏷️ Stammdaten</button>
+      <button data-asec="tresor">🔐 Tresor</button>
       <button data-asec="einstellungen">⚙️ Einstellungen</button>
       <button data-asec="mail">✉️ Mail</button>
       <button data-asec="system" title="Port, Datensicherung, Updates">💾 System</button>
@@ -177,6 +199,28 @@
         <div class="scroll"><table id="typeTable"></table></div>
         <p class="muted small">Vorbelegt, frei änderbar. Typen mit Geräten lassen sich nur zusammenlegen, nicht einfach löschen.</p>
         <div class="err" id="typeErr"></div>
+      </section>
+    </div>
+
+    <div class="asec g2" data-asec="tresor">
+      <section class="card">
+        <div class="toolbar"><h2>Wer hat Zugang zum Tresor?</h2><button class="primary mini" id="vaInvite">＋ Freischalten</button></div>
+        <div class="scroll"><table id="vaMembers"></table></div>
+        <p class="muted small">Freischalten geht nur für Benutzer mit <b>Vollzugriff</b> und nur bei offenem Tresor. Die Person bekommt einen
+          Einladungscode (z. B. am Telefon durchgeben, 7 Tage gültig) und legt damit ihr <b>eigenes</b> Tresor-Passwort fest – du erfährst es nie.</p>
+        <div class="err" id="vaErr"></div>
+      </section>
+      <section class="card">
+        <h2>Einstellungen</h2>
+        <label style="max-width:240px">Automatisch sperren nach <select id="vaTimeout"><option value="5">5 Minuten</option><option value="15">15 Minuten</option>
+          <option value="30">30 Minuten</option><option value="60">60 Minuten</option></select></label>
+        <h3>Notfall-Schlüssel</h3>
+        <p class="small" style="margin:0" id="vaRecovery"></p>
+        <div class="row" style="margin-top:8px"><button id="vaRenew">Neu erzeugen …</button></div>
+        <p class="muted small">Neu erzeugen macht den alten Schlüssel sofort ungültig – danach den neuen ausdrucken und den alten vernichten.</p>
+        <h3>Inhalt</h3>
+        <p class="small" style="margin:0" id="vaCounts"></p>
+        <div class="err" id="vaSetErr"></div>
       </section>
     </div>
 
@@ -351,5 +395,6 @@
 <div id="sheet" class="sheet hidden" role="dialog" aria-modal="true"></div>
 <script src="static/app.js?v={{v}}"></script>
 <script src="static/doku.js?v={{v}}"></script>
+<script src="static/vault.js?v={{v}}"></script>
 </body>
 </html>

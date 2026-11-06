@@ -87,6 +87,12 @@ def update_user(user_id: int, data: UserUpdate, admin=Depends(admin_user), conn:
     losing_admin = (data.is_admin is False and row["is_admin"]) or (data.active is False and row["is_admin"] and row["active"])
     if losing_admin and _active_admins(conn) <= 1:
         raise HTTPException(400, "Es muss mindestens ein aktiver Admin bleiben")
+    if losing_admin:
+        from .. import vault
+        if vault.is_member(conn, user_id) and vault.member_count(conn) <= 1:
+            raise HTTPException(400, "Das ist der letzte Zugang zum Tresor – bitte erst jemand anderen freischalten")
+        if vault.remove_user(conn, user_id):
+            audit(conn, admin["id"], "vault_access_removed", f"user:{user_id}", "Tresor-Zugang entfernt (kein Vollzugriff mehr)")
     if changes.get("display_name"):
         conn.execute("UPDATE users SET display_name = ? WHERE id = ?", (data.display_name.strip(), user_id))
     if "email" in changes:

@@ -47,6 +47,7 @@ async function docShow(tab, sub) {
   if (tab === "network") return loadNetwork();
   if (tab === "licenses") return sub ? showLicense(Number(sub)) : loadLicenses();
   if (tab === "contacts") return loadContacts(sub ? Number(sub) : 0);
+  if (tab === "vault" && window.loadCredentials) return loadCredentials();
 }
 window.docShow = docShow;
 
@@ -344,8 +345,7 @@ async function showDevice(id) {
       <div id="devFiles">${filesHtml(d.files)}</div><div class="err" id="devFileErr"></div>
     </section>
     <aside class="panel">
-      <div class="card"><h3>Zugangsdaten</h3>
-        <div class="vault"><b>🔒 Tresor kommt in Version 0.3</b>Dann stehen hier z. B. lokaler Admin und BIOS-Passwort – nur mit Vollzugriff und eigenem Tresor-Passwort.</div></div>
+      ${adm ? '<div class="card" id="devCreds"></div>' : ""}
       <div class="card"><h3>Lizenzen</h3>
         ${d.licenses.map(l => `<div class="due"><span class="ti">🔑</span><div><a href="#licenses/${l.id}" style="color:var(--text);text-decoration:none">${esc(l.name)}</a>
           <small>${esc([l.term || l.kind_label, l.seats != null ? `${l.used} von ${l.seats}` : ""].filter(Boolean).join(" · "))}</small></div>
@@ -363,6 +363,7 @@ async function showDevice(id) {
   const reload = () => showDevice(id);
   box.querySelector("[data-back]").onclick = () => go("devices");
   if (!adm) { bindFiles(box, reload); return; }
+  if (window.credPanel) credPanel($("devCreds"), "device", d.id);
   box.querySelector("[data-edit]").onclick = () => deviceForm(d);
   box.querySelector("[data-addip]").onclick = () => ipForm(null, { device_id: d.id }, reload);
   $$("[data-ip]", box).forEach(tr => tr.onclick = () => ipForm(d.ip_list.find(i => i.id === Number(tr.dataset.ip)), {}, reload));
@@ -438,7 +439,8 @@ async function loadNetwork() {
     doc.net = Number(el.dataset.net); loadNetwork();
   });
   $$("#netGrid [data-netedit]").forEach(b => b.onclick = () => networkForm(nets.find(n => n.id === Number(b.dataset.netedit))));
-  await Promise.all([loadIps(nets.find(n => n.id === doc.net)), showDiagram(site), showIsp(site)]);
+  await Promise.all([loadIps(nets.find(n => n.id === doc.net)), showDiagram(site), showIsp(site),
+    isAdmin() && window.credPanel && site.id ? credPanel($("siteCreds"), "site", site.id) : null]);
 }
 async function loadIps(net) {
   $("ipErr").textContent = "";
@@ -601,7 +603,7 @@ async function showLicense(id) {
         <dt>Plätze</dt><dd>${l.seats != null ? `${l.used} von ${l.seats} genutzt${l.seats_used == null ? " (zugeordnete Geräte)" : ""}` : "unbegrenzt / nicht gezählt"}</dd>
         <dt>Läuft ab</dt><dd>${l.expires_on ? deDate(l.expires_on) : "unbefristet"}</dd>
         <dt>Vertrag / Kd.-Nr.</dt><dd class="mono">${esc(l.contract_ref || "–")}</dd>
-        <dt>Lizenzschlüssel</dt><dd><span class="tag lock">🔒 kommt mit dem Tresor in 0.3</span></dd></dl>
+        <dt>Lizenzschlüssel</dt><dd id="licKey"><span class="tag lock">🔒 nur mit Vollzugriff</span></dd></dl>
       <div class="sect">Notizen</div>${l.notes ? `<div class="note">${esc(l.notes)}</div>` : '<p class="muted small" style="margin:0">–</p>'}
       <div class="sect">Anhänge ${uploadButton("licFile")}</div><div>${filesHtml(l.files)}</div><div class="err" id="licFileErr"></div>
     </section>
@@ -611,10 +613,12 @@ async function showLicense(id) {
           ${x.status !== "active" ? `<small>${esc(STATUS[x.status])}</small>` : ""}</div>${adm ? `<button class="x" data-undev="${x.id}" title="Zuordnung entfernen">✕</button>` : ""}</div>`).join("") ||
           '<p class="muted small" style="margin:0">Keinem Gerät zugeordnet.</p>'}
         ${adm ? '<button class="mini" data-adddev style="margin-top:8px">＋ Gerät zuordnen</button>' : ""}</div>
+      ${adm ? '<div class="card" id="licCreds"></div>' : ""}
       <div class="card"><h3>Verlauf</h3>${historyHtml(l.history)}</div>
     </aside>
   </div>`;
   const reload = () => showLicense(id);
+  if (adm && window.licenseKeyRow) { licenseKeyRow($("licKey"), l); credPanel($("licCreds"), "license", l.id); }
   box.querySelector("[data-back]").onclick = () => go("licenses");
   bindFiles(box, reload);
   if (!adm) return;

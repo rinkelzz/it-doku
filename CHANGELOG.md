@@ -2,6 +2,30 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.3.0] – 2026-11-06
+
+### Neu
+- **Tresor für Zugangsdaten.** Passwort, Notiz und 2FA-Geheimnis jedes Zugangs sowie Lizenzschlüssel liegen
+  verschlüsselt in der Datenbank (AES-256-CTR + HMAC-SHA-256, reines Python). Titel, Benutzername, Adresse und
+  Zuordnung bleiben lesbar – Liste und Suche funktionieren auch bei gesperrtem Tresor.
+- **Tresor-Passwort pro Benutzer** (nicht das Login-Passwort, nirgends gespeichert, PBKDF2-SHA-256 mit 600 000 Runden).
+  Einrichten in zwei Schritten mit **Notfall-Schlüssel** zum Ausdrucken (PDF-Blatt mit Anleitung).
+- **Auto-Sperre** nach 15 Minuten ohne Aktivität (5–60 einstellbar), beim Abmelden und beim Neustart. Anzeige mit
+  Restzeit und „Sperren“ in der Kopfzeile.
+- **Freischalten per Einladungscode:** Bei offenem Tresor einen Code für einen Benutzer mit Vollzugriff erzeugen
+  (7 Tage gültig); die Person legt damit ihr eigenes Tresor-Passwort fest. Zugang entziehen, Einladung zurückziehen,
+  Tresor-Passwort ändern, „Passwort vergessen?“ mit Notfall-Schlüssel, Notfall-Schlüssel neu erzeugen.
+- **Reiter „Zugangsdaten“** mit Filter (Geräte, Lizenzen & Portale, Standorte, Kontakte, allgemein, 2FA, Passwort älter
+  als 1 Jahr) und Suche. **Anzeigen** (verschwindet nach 30 s) und **Kopieren** (Zwischenablage wird nach 30 s geleert,
+  soweit der Browser es erlaubt) – jeder Abruf steht im Änderungsprotokoll.
+- **2FA-Codes (TOTP):** Base32-Geheimnis oder `otpauth://`-Link hinterlegen, die App zeigt den aktuellen Code mit Restzeit.
+- **Passwort-Generator** im Browser (Länge, Zeichengruppen, ohne ähnliche Zeichen) mit Stärke-Anzeige.
+- Zugangsdaten direkt am **Gerät**, an der **Lizenz** (Portale) und am **Standort** (z. B. WLAN); **Lizenzschlüssel**
+  an der Lizenz anzeigen, kopieren, ändern.
+- Benutzer mit **Lesen** sehen keine Zugangsdaten – auch nicht in Suche und „Zuletzt geändert“. Wer den Vollzugriff
+  verliert oder deaktiviert wird, verliert automatisch den Tresor-Zugang; der letzte Zugang lässt sich nicht entfernen.
+- Neuer Bereich **„Tresor“** im Änderungsprotokoll; Fehlversuche beim Entsperren sind begrenzt (5 in 15 Minuten).
+
 ## [0.2.0] – 2026-11-06
 
 ### Neu
@@ -46,5 +70,6 @@ Erste Version: das Fundament der IT-Dokumentation (übernommen aus [Zeitmanageme
 - **Port** in der App änderbar, Mailversand über den eigenen SMTP-Server mit Testmail.
 - Neues Symbol (Dokument mit Schloss).
 
+[0.3.0]: https://github.com/rinkelzz/it-doku/releases/tag/v0.3.0
 [0.2.0]: https://github.com/rinkelzz/it-doku/releases/tag/v0.2.0
 [0.1.0]: https://github.com/rinkelzz/it-doku/releases/tag/v0.1.0
