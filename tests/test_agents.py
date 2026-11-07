@@ -260,3 +260,36 @@ def test_selfbuilt_pc_and_fast_startup(admin):
     p = admin.get(f"/api/v1/devices/{d['id']}/agent").json()["report"]
     assert p["power_on_time"] == "2026-11-06T17:10:00+00:00" and p["fast_startup"] is True
     assert agents._hw_text("To Be Filled By O.E.M. B550 Pro4") == "B550 Pro4" and agents._hw_text("System Product Name") == ""
+
+
+def test_request_report_and_contact(admin):
+    r = admin.post("/api/v1/agents", json={"name": "srv"}).json()
+    send(r["token"])
+    c = TestClient(app)
+    cfg = c.get("/api/agent/v1/config", headers={"Authorization": "Bearer " + r["token"]}).json()
+    assert cfg["report_due"] is False
+    assert admin.post(f"/api/v1/agents/{r['id']}/request-report").status_code == 200
+    a = admin.get("/api/v1/agents").json()["agents"][0]
+    assert a["report_requested"] is True and a["last_contact_at"]
+    assert c.get("/api/agent/v1/config", headers={"Authorization": "Bearer " + r["token"]}).json()["report_due"] is True
+    send(r["token"])
+    assert admin.get("/api/v1/agents").json()["agents"][0]["report_requested"] is False
+    # „beendet“ (oneshot, Bedingung nicht erfüllt) zählt nicht als Problem
+    rep = copy.deepcopy(REPORT)
+    rep["services"] = [{"name": "e2scrub_reap", "state": "idle", "start": "auto"}, {"name": "nginx", "state": "failed", "start": "auto"}]
+    send(r["token"], rep)
+    did = admin.get("/api/v1/agents").json()["agents"][0]["device_id"]
+    assert admin.get(f"/api/v1/devices/{did}/agent").json()["agent"]["problems"]["services_stopped"] == ["nginx"]
+
+
+def test_agent_fingerprint_ignores_small_disk_changes():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("ag", str(ROOT / "app/agent/itdoku-agent.py"))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    a = copy.deepcopy(REPORT)
+    b = copy.deepcopy(REPORT)
+    b["disks"][1]["free_gb"] = 1501  # kleine Schwankung
+    assert m.fingerprint(a) == m.fingerprint(b)
+    b["updates"]["pending"] = 0  # Updates eingespielt → sofort melden
+    assert m.fingerprint(a) != m.fingerprint(b)

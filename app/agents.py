@@ -224,7 +224,7 @@ def sanitize(raw: Dict[str, Any]) -> Dict[str, Any]:
         state = _s(sv.get("state"), 20).lower()
         start = _s(sv.get("start"), 20).lower()
         out["services"].append({"name": name, "display": _s(sv.get("display"), 150),
-                                "state": state if state in ("running", "stopped", "failed") else "other",
+                                "state": state if state in ("running", "stopped", "failed", "idle") else "other",
                                 "start": start if start in ("auto", "manual", "disabled") else ""})
     out["services"].sort(key=lambda x: x["name"].lower())
     return out
@@ -425,7 +425,7 @@ def store_report(conn: sqlite3.Connection, agent: sqlite3.Row, rep: Dict[str, An
         _sync_ips(conn, d, rep)
     conn.execute(
         "UPDATE agents SET device_id = ?, platform = ?, last_report_at = ?, last_ip = ?, agent_version = ?, hostname = ?, "
-        "os_name = ?, report = ? WHERE id = ?",
+        "os_name = ?, report = ?, report_requested = 0 WHERE id = ?",
         (device_id, rep["platform"] or agent["platform"], now_utc_str(), client_ip[:60], rep["agent_version"], rep["hostname"],
          os_label(rep), json.dumps(rep, ensure_ascii=False, separators=(",", ":")), agent["id"]))
     return {"device_id": device_id, "created": created}
@@ -437,7 +437,7 @@ DUE_HOURS = 20
 
 
 def report_due(agent: sqlite3.Row) -> bool:
-    if not agent["last_report_at"]:
+    if agent["report_requested"] or not agent["last_report_at"]:
         return True
     try:
         last = parse_utc(agent["last_report_at"])

@@ -2,6 +2,19 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.8.3] – 2026-11-07
+
+### Geändert
+- **Agent 1.2 meldet Änderungen sofort:** Bei der stündlichen Nachfrage vergleicht der Agent System, Software, Updates,
+  Dienste, Netz und Datenträger (grob) mit dem letzten Bericht. Hat sich etwas geändert – z. B. Updates eingespielt –,
+  geht sofort ein Bericht raus, nicht erst nach einem Tag.
+- **„↻ Bericht anfordern“** am Gerät (Karte „Agent“): Der Agent schickt beim nächsten Nachfragen, spätestens in einer
+  Stunde, einen frischen Bericht. Die Karte zeigt außerdem „Nachgefragt vor …“ – so sieht man, dass der Agent lebt,
+  auch wenn er gerade keinen Bericht schicken musste.
+- **Linux-Dienste ohne Fehlalarm:** Eingeschaltete Dienste, die nicht laufen, aber nicht kaputt sind – fertige
+  Einmal-Dienste (oneshot), Dienste mit nicht zutreffender Bedingung (z. B. corosync ohne Cluster) oder Dienste, die ein
+  Socket/Timer bei Bedarf startet – erscheinen als „beendet“ statt „gestoppt“ und zählen nicht mehr als Problem.
+
 ## [0.8.2] – 2026-11-06
 
 ### Neu

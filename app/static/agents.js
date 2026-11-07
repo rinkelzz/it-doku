@@ -192,11 +192,16 @@ async function agentPanel(d, reload) {
   side.classList.remove("hidden");
   side.innerHTML = `<h3>Agent</h3><dl class="kv"><dt>Name</dt><dd>${esc(a.name)}</dd><dt>System</dt><dd>${esc(a.platform_label || "–")}</dd>
     <dt>Letzter Bericht</dt><dd>${a.last_report_at ? (a.stale ? `<span class="tag bad">${agAgo(a.last_report_at)}</span>` : agAgo(a.last_report_at)) : "wartet"}</dd>
+    ${a.last_contact_at ? `<dt>Nachgefragt</dt><dd title="Ab Agent 1.1 fragt der Agent stündlich nach; einen Bericht schickt er einmal am Tag, bei Änderungen oder auf Anforderung.">${agAgo(a.last_contact_at)}</dd>` : ""}
     ${a.agent_version ? `<dt>Version</dt><dd>${esc(a.agent_version)}</dd>` : ""}${adm && a.last_ip ? `<dt>Von Adresse</dt><dd class="mono">${esc(a.last_ip)}</dd>` : ""}</dl>
     ${a.stale ? `<p class="small err" style="margin:6px 0">Seit über ${agState.settings.stale_days || 3} Tagen kein Bericht – Gerät aus, Agent entfernt oder keine Verbindung?</p>` : ""}
-    ${adm ? '<div class="row" style="gap:6px;margin-top:10px"><button class="mini" data-renew>Neuen Schlüssel erzeugen</button><button class="mini danger" data-toggle>' + (a.disabled ? "Entsperren" : "Agent sperren") + "</button></div>" : ""}`;
+    ${adm ? `<div class="row" style="gap:6px;margin-top:10px">${a.report_requested ? '<span class="tag warn" title="Kommt beim nächsten Nachfragen, spätestens in einer Stunde">Bericht angefordert</span>'
+      : '<button class="mini" data-reqrep title="Der Agent schickt beim nächsten Nachfragen (spätestens in einer Stunde) einen frischen Bericht">↻ Bericht anfordern</button>'}
+      <button class="mini" data-renew>Neuen Schlüssel erzeugen</button><button class="mini danger" data-toggle>${a.disabled ? "Entsperren" : "Agent sperren"}</button></div>` : ""}`;
   if (adm) {
     side.querySelector("[data-renew]").onclick = () => agRenew(a, reload);
+    const rq = side.querySelector("[data-reqrep]");
+    if (rq) rq.onclick = async () => { try { await api(`agents/${a.id}/request-report`, { method: "POST" }); reload(); } catch (e) { alert(e.message); } };
     side.querySelector("[data-toggle]").onclick = () => agToggle(a, reload);
   }
   if (!p) return;
@@ -246,7 +251,7 @@ async function agentPanel(d, reload) {
   const svcHtml = () => {
     const rows = allSvc ? svc : stopped;
     box.querySelector("[data-svc]").innerHTML = rows.length ? rows.map(s => `<div class="sv"><span>${esc(s.display || s.name)}${s.display && s.display !== s.name ? ` <small class="muted mono">${esc(s.name)}</small>` : ""}</span>
-      <span>${s.start === "auto" ? "" : `<small class="muted">${s.start === "disabled" ? "deaktiviert" : s.start === "manual" ? "manuell" : ""}</small> `}<span class="tag ${s.state === "running" ? "okk" : s.start === "auto" ? "bad" : ""}">${s.state === "running" ? "läuft" : s.state === "failed" ? "Fehler" : s.state === "stopped" ? "gestoppt" : "?"}</span></span></div>`).join("")
+      <span>${s.start === "auto" ? "" : `<small class="muted">${s.start === "disabled" ? "deaktiviert" : s.start === "manual" ? "manuell" : ""}</small> `}<span class="tag ${s.state === "running" ? "okk" : s.state === "idle" ? "" : s.start === "auto" ? "bad" : ""}" ${s.state === "idle" ? 'title="Einmal-Dienst fertig, Bedingung trifft nicht zu oder wird bei Bedarf gestartet – kein Fehler"' : ""}>${s.state === "running" ? "läuft" : s.state === "idle" ? "beendet" : s.state === "failed" ? "Fehler" : s.state === "stopped" ? "gestoppt" : "?"}</span></span></div>`).join("")
       : `<p class="muted small" style="margin:0">${svc.length ? "Alle Dienste mit Autostart laufen." : "Keine Dienste gemeldet."}</p>`;
   };
   svcHtml();

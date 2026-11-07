@@ -168,6 +168,13 @@ Befehl zum Einfügen:
 | Synology DSM 7 | per SSH, `sudo -i`; Python 3 ist bei DSM 7 dabei | Aufgabe im DSM-Aufgabenplaner (stündlich) |
 | macOS | Python 3 (Command Line Tools), sudo | LaunchDaemon |
 
+Der Zeitplan fragt stündlich nach: Ein Bericht geht einmal am Tag raus, sofort wenn sich am Rechner etwas geändert hat
+(ab Agent 1.2) und wenn er am Gerät mit „↻ Bericht anfordern“ angefordert wurde.
+
+Agent aktualisieren (Konfiguration und Schlüssel bleiben): Linux `sudo curl -fsSL <Adresse>/agent/itdoku-agent.py -o
+/usr/local/bin/itdoku-agent`, Windows `iwr <Adresse>/agent/itdoku-agent.ps1 -OutFile C:\ProgramData\ITDoku\itdoku-agent.ps1`
+(PowerShell als Administrator), Synology `curl -fsSL <Adresse>/agent/itdoku-agent.py -o /usr/local/itdoku-agent/itdoku-agent.py`.
+
 Entfernen: `sudo itdoku-agent --uninstall` bzw.
 `powershell -ExecutionPolicy Bypass -File C:\ProgramData\ITDoku\itdoku-agent.ps1 -Uninstall`.
 Ansehen, was gesendet würde, ohne zu senden: `--print` bzw. `-Print`.

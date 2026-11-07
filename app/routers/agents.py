@@ -122,7 +122,8 @@ def script(name: str):
 def _agent_out(conn, r, days: int) -> dict:
     rep = json.loads(r["report"]) if r["report"] else None
     out = {k: r[k] for k in ("id", "name", "platform", "device_id", "token_hint", "last_ip", "agent_version", "hostname",
-                             "os_name", "last_report_at", "created_at")}
+                             "os_name", "last_report_at", "last_contact_at", "created_at")}
+    out["report_requested"] = bool(r["report_requested"])
     out["disabled"] = bool(r["disabled"])
     out["platform_label"] = "Synology" if (r["os_name"] or "").startswith("DSM ") else agents.PLATFORMS.get(r["platform"], "")
     out["scans"] = [n["name"] for n in conn.execute("SELECT name FROM networks WHERE scan_agent_id = ? AND scan = 1", (r["id"],))]
@@ -217,6 +218,14 @@ def renew_token(agent_id: int, request: Request, admin=Depends(admin_user), conn
                  (agents.token_hash(token), agents.hint(token), now_utc_str(), agent_id))
     audit(conn, admin["id"], "agent_token", f"agent:{agent_id}", f"{a['name']}: neuer Schlüssel (alter ungültig)")
     return {"id": agent_id, "token": token, "url": _agent_url(conn, request), "urls": _urls(conn, request)}
+
+
+@router.post("/api/v1/agents/{agent_id}/request-report")
+def request_report(agent_id: int, user=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    """Agent soll beim nächsten Nachfragen (stündlich, ab Agent 1.1) einen frischen Bericht schicken."""
+    _get(conn, agent_id)
+    conn.execute("UPDATE agents SET report_requested = 1 WHERE id = ?", (agent_id,))
+    return {"ok": True}
 
 
 class AgentPatch(BaseModel):

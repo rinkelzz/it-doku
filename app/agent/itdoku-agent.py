@@ -32,7 +32,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-VERSION = "1.1"
+VERSION = "1.2"
 IS_MAC = sys.platform == "darwin"
 IS_SYNO = os.path.exists("/etc.defaults/VERSION") and os.path.isdir("/usr/syno")
 SYNO_DIR = "/usr/local/itdoku-agent"
@@ -286,6 +286,28 @@ def linux_services():
             state = "running"  # Einmal-Dienste (oneshot) gelten als in Ordnung
         out.append({"name": name[:-8], "display": f[4] if len(f) > 4 else "", "state": state,
                     "start": "auto" if en == "enabled" else "disabled" if en in ("disabled", "masked") else "manual"})
+    # Eingeschaltet, aber nicht aktiv ist bei systemd oft gewollt: Einmal-Dienste, die fertig sind (oneshot),
+    # Dienste, deren Bedingung nicht zutrifft (z. B. corosync ohne Cluster), und Dienste, die erst ein Socket
+    # oder Timer startet. Die gelten als „beendet“ (idle) – nur echte Ausfälle bleiben „gestoppt“/„Fehler“.
+    quiet = [s_["name"] + ".service" for s_ in out if s_["state"] == "stopped" and s_["start"] == "auto"]
+    if quiet:
+        info, cur = {}, {}
+        for line in run(["systemctl", "show", "-p", "Id,Type,Result,ConditionResult,TriggeredBy"] + quiet, 30).splitlines() + [""]:
+            if not line.strip():
+                if cur.get("Id"):
+                    info[cur["Id"]] = cur
+                cur = {}
+            elif "=" in line:
+                k, v = line.split("=", 1)
+                cur[k] = v
+        for s_ in out:
+            i = info.get(s_["name"] + ".service")
+            if not i or s_["state"] != "stopped":
+                continue
+            if i.get("Result", "success") != "success":
+                s_["state"] = "failed"
+            elif i.get("Type") == "oneshot" or i.get("ConditionResult") == "no" or i.get("TriggeredBy"):
+                s_["state"] = "idle"
     return out
 
 
@@ -671,18 +693,50 @@ def scan_networks(nets, quick_ports, all_ports, max_hosts=1022, quiet=False):
     return {"started_at": started, "networks": result}
 
 
+STATE = CONF + ".state"
+
+
+def fingerprint(rep):
+    """Was sich „wirklich“ ändert: System, Hardware, Software, Updates, Dienste, Netz, Neustart, Platten grob (5 %-Stufen).
+    Ändert sich davon etwas, schickt der stündliche Lauf sofort einen Bericht – nicht erst nach einem Tag."""
+    import hashlib
+    disks = [(d.get("mount"), round(d.get("total_gb") or 0), int(100 * (d.get("free_gb") or 0) / (d.get("total_gb") or 1)) // 5)
+             for d in rep.get("disks", [])]
+    upd = rep.get("updates", {})
+    key = {"os": rep.get("os"), "hw": rep.get("hardware"), "boot": rep.get("boot_time"), "disks": disks,
+           "sw": sorted((p.get("name", ""), p.get("version", "")) for p in rep.get("software", [])),
+           "upd": [upd.get("pending"), upd.get("reboot_required"), sorted(upd.get("items") or [])],
+           "svc": sorted((x.get("name", ""), x.get("state", "")) for x in rep.get("services", [])),
+           "net": sorted((i.get("name", ""), tuple(i.get("ipv4", []))) for i in rep.get("network", {}).get("interfaces", []))}
+    return hashlib.sha256(json.dumps(key, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def send_tracked(conf, rep, quiet):
+    res = send(conf, rep)
+    try:
+        with open(STATE, "w", encoding="utf-8") as f:
+            f.write(fingerprint(rep))
+        os.chmod(STATE, 0o600)
+    except OSError:
+        pass
+    if not quiet:
+        print("Bericht gesendet (Gerät #{}).".format(res.get("device_id")))
+    return res
+
+
 def auto(conf, quiet, force_report=False):
-    """Stündlicher Lauf: nachfragen, was fällig ist, und nur das erledigen."""
+    """Stündlicher Lauf: nachfragen, was fällig ist, und nur das erledigen. Ein Bericht geht raus, wenn er fällig
+    oder angefordert ist (einmal am Tag / Knopf in der App) oder wenn sich am Rechner etwas geändert hat."""
     cfg = api(conf, "/api/agent/v1/config")
     if cfg is None:  # ältere IT-Dokumentation ohne Nachfrage: einfach berichten
-        res = send(conf, collect())
-        if not quiet:
-            print("Bericht gesendet (Gerät #{}).".format(res.get("device_id")))
+        send_tracked(conf, collect(), quiet)
         return
-    if cfg.get("report_due") or force_report:
-        res = send(conf, collect())
-        if not quiet:
-            print("Bericht gesendet (Gerät #{}).".format(res.get("device_id")))
+    rep = collect()
+    changed = fingerprint(rep) != read(STATE)
+    if cfg.get("report_due") or force_report or changed:
+        send_tracked(conf, rep, quiet)
+    elif not quiet:
+        print("Nichts geändert, Bericht nicht fällig.")
     if cfg.get("scan"):
         payload = scan_networks(cfg["scan"], cfg.get("quick_ports") or [445, 80, 443, 22], cfg.get("ports") or [80, 443],
                                 cfg.get("max_hosts") or 1022, quiet)
@@ -752,7 +806,7 @@ def install(args):
             f.write("SHELL=/bin/sh\n{m} * * * * root {py} {bin} --auto --quiet\n@reboot root sleep 120 && {py} {bin} --auto --quiet\n".format(
                 m=int(time.time()) % 60, py=py, bin=BIN))
         print("Eingerichtet: Cron-Eintrag {} (stündliche Nachfrage, Bericht täglich, und nach dem Start).".format(CRON_FILE))
-    res = send(conf, collect())
+    res = send_tracked(conf, collect(), True)
     print("Erster Bericht gesendet – Gerät #{} in der IT-Dokumentation{}.".format(res.get("device_id"), " (neu angelegt)" if res.get("created") else ""))
     cfg = api(conf, "/api/agent/v1/config", tries=1)
     if cfg and cfg.get("scan"):
@@ -770,7 +824,7 @@ def uninstall():
         run(["systemctl", "disable", "--now", "itdoku-agent.timer"], 30)
     if IS_SYNO:
         print("Bitte auch die Aufgabe „IT-Doku Agent“ im DSM-Aufgabenplaner löschen.")
-    for p in (PLIST, SYSTEMD_SERVICE, SYSTEMD_TIMER, CRON_FILE, CONF, BIN):
+    for p in (PLIST, SYSTEMD_SERVICE, SYSTEMD_TIMER, CRON_FILE, CONF, CONF + ".state", BIN):
         try:
             os.remove(p)
         except OSError:

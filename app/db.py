@@ -365,6 +365,12 @@ def _m8_fernscan(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE agents ADD COLUMN last_contact_at TEXT")
 
 
+def _m9_bericht_anfordern(conn: sqlite3.Connection) -> None:
+    """Version 0.8.3: Bericht eines Agenten in der App anfordern."""
+    if "report_requested" not in {r[1] for r in conn.execute("PRAGMA table_info(agents)")}:
+        conn.execute("ALTER TABLE agents ADD COLUMN report_requested INTEGER NOT NULL DEFAULT 0")
+
+
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_stammdaten,
@@ -374,6 +380,7 @@ MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     6: _m6_agenten,
     7: _m7_weburls,
     8: _m8_fernscan,
+    9: _m9_bericht_anfordern,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
