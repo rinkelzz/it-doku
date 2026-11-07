@@ -23,7 +23,10 @@ async def lifespan(app: FastAPI):
     conn = connect()
     try:
         write_ui_config(conn)
-        publish_proxy_files()
+        from . import dsm_auth, httpguard
+        httpguard.configure(get_setting(conn, "http_access"))
+        dsm_auth.rotate_secret()
+        publish_proxy_files(get_setting(conn, "dsm_sso") != "0")
         proxy.configure(get_setting(conn, "trusted_proxies"))
     finally:
         conn.close()
@@ -46,6 +49,9 @@ app = FastAPI(
 
 # Echte Absenderadresse hinter dem Reverse Proxy (X-Forwarded-For/-Proto) – nur von der NAS selbst
 # (DSM-Reverse-Proxy) und von Proxys, die unter Verwaltung → System eingetragen sind (siehe app/proxy.py).
+# http-Sperre läuft nach der Proxy-Auswertung (innen), damit https über einen Reverse Proxy als https zählt
+from . import httpguard  # noqa: E402
+app.add_middleware(httpguard.HttpGuard)
 app.add_middleware(proxy.ProxyHeaders)
 
 

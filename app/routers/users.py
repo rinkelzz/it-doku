@@ -101,7 +101,7 @@ def update_user(user_id: int, data: UserUpdate, admin=Depends(admin_user), conn:
         conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(data.password), user_id))
         conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
     if data.is_admin is not None:
-        conn.execute("UPDATE users SET is_admin = ? WHERE id = ?", (int(data.is_admin), user_id))
+        conn.execute("UPDATE users SET is_admin = ?, admin_via_dsm = 0 WHERE id = ?", (int(data.is_admin), user_id))
     if data.active is not None:
         conn.execute("UPDATE users SET active = ? WHERE id = ?", (int(data.active), user_id))
         if not data.active:

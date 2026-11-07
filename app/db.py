@@ -371,6 +371,18 @@ def _m9_bericht_anfordern(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE agents ADD COLUMN report_requested INTEGER NOT NULL DEFAULT 0")
 
 
+def _m10_sicherheit(conn: sqlite3.Connection) -> None:
+    """Version 0.8.4: Vollzugriff, der nur aus DSM kommt, merken (damit er beim Entzug in DSM auch hier wegfällt)."""
+    if "admin_via_dsm" not in {r[1] for r in conn.execute("PRAGMA table_info(users)")}:
+        conn.execute("ALTER TABLE users ADD COLUMN admin_via_dsm INTEGER NOT NULL DEFAULT 0")
+    # Bisher automatisch vergebene Rechte erkennen: Benutzer ohne eigenes Passwort, deren Vollzugriff laut Protokoll aus DSM kam
+    conn.execute("""
+        UPDATE users SET admin_via_dsm = 1
+        WHERE is_admin = 1 AND password_hash IS NULL AND EXISTS (
+            SELECT 1 FROM audit_log a WHERE a.target = 'user:' || users.id
+              AND (a.action = 'user_admin_dsm' OR (a.action = 'user_created_dsm' AND a.details LIKE '%Vollzugriff%')))""")
+
+
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_stammdaten,
@@ -381,6 +393,7 @@ MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     7: _m7_weburls,
     8: _m8_fernscan,
     9: _m9_bericht_anfordern,
+    10: _m10_sicherheit,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
@@ -430,6 +443,11 @@ DEFAULT_SETTINGS = {
     "agent_stale_days": "3",
     # Eigener Reverse Proxy im LAN (z. B. Nginx Proxy Manager), dem X-Forwarded-For geglaubt wird
     "trusted_proxies": "",
+    # Weboberfläche über unverschlüsseltes http aus dem Netz (nicht DSM-Fenster, nicht https): standardmäßig gesperrt.
+    # Agenten (/api/agent/…, /agent/…) und die Paketquelle bleiben erreichbar.
+    "http_access": "0",
+    # Anmeldung im DSM-Fenster (Single Sign-on über app.cgi)
+    "dsm_sso": "1",
 }
 
 

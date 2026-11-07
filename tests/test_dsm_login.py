@@ -13,12 +13,25 @@ from app.main import app
 from app.routers import auth as auth_router
 
 
+DSM_ADMINS = set()  # wer in der nachgestellten DSM-Gruppe „administrators“ ist
+
+
 def proxy_headers(user=None, admin=False, secret=None):
+    """Die App glaubt dem Admin-Header nicht mehr, sie fragt DSM (hier nachgestellt) selbst."""
     h = {"X-ITD-Proxy-Secret": secret or dsm_auth.proxy_secret(), "X-ITD-Proxy-Base": "app.cgi"}
     if user:
         h["X-DSM-User"] = user
-        h["X-DSM-Admin"] = "1" if admin else "0"
+        h["X-DSM-Admin"] = "1"  # wird ignoriert
+        (DSM_ADMINS.add if admin else DSM_ADMINS.discard)(user)
     return h
+
+
+@pytest.fixture(autouse=True)
+def fake_dsm_groups(monkeypatch):
+    monkeypatch.setattr(dsm_auth, "_is_dsm_admin", lambda u: u in DSM_ADMINS)
+    dsm_auth._admin_cache.clear()
+    yield
+    dsm_auth._admin_cache.clear()
 
 
 @pytest.fixture()
@@ -171,10 +184,11 @@ class FakeDSM(BaseHTTPRequestHandler):
         self._reply({"success": True})
 
 
-def test_dsm_password_check_against_fake_dsm(admin):
+def test_dsm_password_check_against_fake_dsm(admin, monkeypatch):
     srv = HTTPServer(("127.0.0.1", 0), FakeDSM)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
+        monkeypatch.setenv("ITD_DSM_PORTS", str(srv.server_port))
         admin.patch("/api/v1/settings", json={"dsm_url": f"http://127.0.0.1:{srv.server_port}"})
         from app.db import connect
         conn = connect()
@@ -187,7 +201,10 @@ def test_dsm_password_check_against_fake_dsm(admin):
             assert dsm_auth.dsm_password_check(conn, "tim", "richtig", "000000") == "otp_wrong"
         finally:
             conn.close()
-        admin.patch("/api/v1/settings", json={"dsm_url": "http://127.0.0.1:1"})
+        # beliebige andere Ports auf der NAS sind nicht erlaubt (Passwörter nur an DSM)
+        assert admin.patch("/api/v1/settings", json={"dsm_url": "http://127.0.0.1:1"}).status_code == 400
+        srv.shutdown()
+        srv.server_close()
         conn = connect()
         try:
             assert dsm_auth.dsm_password_check(conn, "tim", "richtig") == "unreachable"
@@ -261,11 +278,12 @@ class _Redirector(BaseHTTPRequestHandler):
     do_GET = do_POST = _go
 
 
-def test_dsm_check_refuses_redirects(admin):
+def test_dsm_check_refuses_redirects(admin, monkeypatch):
     from app.db import connect
     srv = HTTPServer(("127.0.0.1", 0), _Redirector)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
+        monkeypatch.setenv("ITD_DSM_PORTS", str(srv.server_port))
         admin.patch("/api/v1/settings", json={"dsm_url": f"http://127.0.0.1:{srv.server_port}"})
         for code in (301, 302, 303, 307, 308):
             srv.code = code
@@ -289,6 +307,7 @@ def test_dsm_check_ignores_proxy_env(admin, monkeypatch):
     for k in ("no_proxy", "NO_PROXY"):
         monkeypatch.delenv(k, raising=False)
     try:
+        monkeypatch.setenv("ITD_DSM_PORTS", str(srv.server_port))
         admin.patch("/api/v1/settings", json={"dsm_url": f"http://127.0.0.1:{srv.server_port}"})
         with connect() as conn:
             assert dsm_auth.dsm_password_check(conn, "tim", "richtig") == "ok"

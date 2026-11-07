@@ -230,7 +230,15 @@ function fillSettings() {
   $("setUrl").value = s.public_url || "";
   $("setUrl").placeholder = s.public_url_env || "https://doku.meinedomain.de";
   $("setDsmLogin").checked = s.dsm_login; $("setDsmCreate").checked = s.dsm_auto_create; $("setDsmAdmins").checked = s.dsm_admins;
-  $("setDsmUrl").value = s.dsm_url || "";
+  const du = $("setDsmUrl");
+  if (s.dsm_url && ![...du.options].some(o => o.value === s.dsm_url)) du.insertAdjacentHTML("beforeend", `<option value="${esc(s.dsm_url)}">${esc(s.dsm_url)}</option>`);
+  du.value = s.dsm_url || "http://127.0.0.1:5000";
+  $("setDsmSso").checked = s.dsm_sso; $("setHttp").checked = s.http_access;
+  const warn = $("setSsoWarn");
+  warn.classList.toggle("hidden", !(s.dsm_sso && s.dsm_secret_mode === "world"));
+  warn.innerHTML = '<span class="tag warn">Hinweis</span> Der Schlüssel für das DSM-Fenster liegt für alle lokalen Benutzer der NAS lesbar im Paketordner ' +
+    '(das Paket darf ihn nicht auf die Gruppe des DSM-Webservers beschränken). Er wird bei jedem Start neu erzeugt. Wer auf der NAS fremden ' +
+    'Programmen oder Benutzern mit Konsolenzugang nicht traut, schaltet die Anmeldung im DSM-Fenster aus – dann meldet man sich auch dort mit Passwort an.';
   $("smtpHost").value = s.smtp_host || ""; $("smtpPort").value = s.smtp_port || 587; $("smtpSec").value = s.smtp_security || "starttls";
   $("smtpUser").value = s.smtp_user || ""; $("smtpPw").value = "";
   $("smtpPw").placeholder = s.smtp_password_set ? "gespeichert – leer = unverändert" : "";
@@ -242,6 +250,9 @@ function fillSettings() {
 
 async function saveSettings() {
   $("setErr").textContent = "";
+  if (state.settings.http_access && !$("setHttp").checked && location.protocol === "http:" && !window.ITD_PROXY &&
+      !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) &&
+      !confirm("Du bist gerade selbst über http verbunden. Nach dem Speichern geht es in diesem Fenster nur noch über das DSM-Fenster oder https weiter. Fortfahren?")) return;
   try {
     const company = $("setCompany").value.trim();
     if (company !== ((state.branding && state.branding.company_name) || "")) {
@@ -250,7 +261,7 @@ async function saveSettings() {
     state.settings = await api("settings", { method: "PATCH", body: {
       theme_default: $("setTheme").value, public_url: $("setUrl").value.trim(),
       dsm_login: $("setDsmLogin").checked, dsm_auto_create: $("setDsmCreate").checked, dsm_admins: $("setDsmAdmins").checked,
-      dsm_url: $("setDsmUrl").value.trim() || null } });
+      dsm_url: $("setDsmUrl").value || null, dsm_sso: $("setDsmSso").checked, http_access: $("setHttp").checked } });
     state.me = await api("me");
     if (window.itdTheme) itdTheme(state.me.theme_effective);
     applyMode(); fillSettings();

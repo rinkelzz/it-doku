@@ -69,18 +69,6 @@ def dsm_user(token):
     return name if USER_RE.match(name) else ""
 
 
-def is_admin(user):
-    try:
-        res = subprocess.run([ID_CMD, "-Gn", user], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5)
-        groups = res.stdout.decode("utf-8", "replace").split()
-        if "administrators" in groups:
-            return True
-        res = subprocess.run([ID_CMD, "-G", user], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5)
-        return "101" in res.stdout.decode().split()
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-
 def main():
     qs = parse_qs(os.environ.get("QUERY_STRING", ""), keep_blank_values=True)
     path = (qs.get("p") or ["/"])[0] or "/"
@@ -90,13 +78,13 @@ def main():
 
     secret = read_file(os.path.join(TARGET, ".proxy_secret"))
     if not secret:
-        return fail("503 Service Unavailable", "IT-Dokumentation ist noch nicht gestartet (kein Proxy-Schlüssel). Bitte das Paket starten.")
+        return fail("503 Service Unavailable", "IT-Dokumentation ist noch nicht gestartet – oder die Anmeldung im DSM-Fenster "
+                    "ist ausgeschaltet (Verwaltung → System). Bitte über https bzw. die eingerichtete Adresse öffnen.")
 
     user = dsm_user(token)
     headers = {"X-ITD-Proxy-Secret": secret, "X-ITD-Proxy-Base": "app.cgi"}
     if user:
-        headers["X-DSM-User"] = quote(user)
-        headers["X-DSM-Admin"] = "1" if is_admin(user) else "0"
+        headers["X-DSM-User"] = quote(user)  # Admin-Rechte prüft die App selbst (Gruppe administrators)
     for key in PASS_HEADERS:
         if os.environ.get(key):
             name = "Content-Type" if key == "CONTENT_TYPE" else key[5:].replace("_", "-").title()

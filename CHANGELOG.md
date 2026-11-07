@@ -2,6 +2,24 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.8.4] – 2026-11-07
+
+### Sicherheit (aus einem externen Review)
+- **DSM-Fenster (Single Sign-on):** Die App glaubt dem mitgeschickten Admin-Header nicht mehr, sondern prüft die
+  Gruppe `administrators` selbst. Der Schlüssel für `app.cgi` wird bei jedem Start neu erzeugt und – wo das Paket es
+  darf – nur für die Gruppe des DSM-Webservers lesbar gemacht (0640). Sonst zeigt Verwaltung → System einen Hinweis.
+  Neu: **Anmeldung im DSM-Fenster ausschaltbar**; dann wird der Schlüssel gelöscht und nicht mehr angenommen.
+- **Kein unverschlüsseltes http aus dem Netz:** Die Weboberfläche gibt es standardmäßig nur im DSM-Fenster, über
+  die NAS selbst und über https. Direkte http-Zugriffe bekommen eine Hinweisseite; Agenten, Agent-Skripte und
+  Paketquelle bleiben erreichbar. Einschaltbar unter Verwaltung → System → Zugriff.
+- **Vollzugriff aus DSM wird wieder entzogen,** wenn jemand kein DSM-Administrator mehr ist oder „DSM-Administratoren
+  bekommen Vollzugriff“ ausgeschaltet wird (sofort, nicht erst bei der nächsten Anmeldung). Von Hand vergebener
+  Vollzugriff bleibt. Bestehende, aus DSM vergebene Rechte werden beim Update erkannt.
+- **DSM-Passwortprüfung nur noch gegen DSM selbst:** `http://127.0.0.1:5000` oder `https://127.0.0.1:5001`, Auswahl
+  statt freiem Feld; andere Ports nur über `ITD_DSM_PORTS` in der Paketkonfiguration.
+- **Login-Sperre zusätzlich pro Adresse** (30 Fehlversuche, gleich welcher Name); Nachsehen legt keine Einträge mehr
+  an, Abgelaufenes wird regelmäßig entfernt.
+
 ## [0.8.3] – 2026-11-07
 
 ### Geändert

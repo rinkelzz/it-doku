@@ -252,6 +252,10 @@ mitgesichert**. Den Ordner bitte **nicht für alle freigeben**.
 
 ## Von unterwegs erreichbar machen (Reverse Proxy)
 
+Die Weboberfläche gibt es standardmäßig nur im DSM-Fenster und über **https** – unverschlüsseltes `http://NAS:8780`
+aus dem Netz zeigt eine Hinweisseite (Agenten und Paketquelle funktionieren trotzdem). Wer im eigenen LAN doch über
+http arbeiten will: Verwaltung → System → Zugriff.
+
 Für den Zugriff von außen braucht die App eine eigene https-Adresse, z. B. `https://doku.kundendomain.de`:
 
 1. DNS-Eintrag für die Subdomain auf die NAS zeigen lassen (z. B. CNAME auf die DDNS-Adresse).

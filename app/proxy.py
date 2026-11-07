@@ -50,6 +50,16 @@ def is_trusted(host: str) -> bool:
     return any(ip in n for n in ALWAYS + _extra if n.version == ip.version)
 
 
+def is_loopback(host: str) -> bool:
+    try:
+        ip = ipaddress.ip_address((host or "").split("%")[0])
+    except ValueError:
+        return False
+    if getattr(ip, "ipv4_mapped", None):
+        ip = ip.ipv4_mapped
+    return ip.is_loopback
+
+
 def env_entries() -> str:
     return os.environ.get("ITD_TRUSTED_PROXIES", "")
 

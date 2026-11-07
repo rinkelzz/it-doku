@@ -248,11 +248,21 @@
             <input id="setUrl" placeholder="https://doku.meinedomain.de"></label>
         </fieldset>
         <fieldset><legend>Anmeldung mit DSM-Konten</legend>
+          <label class="inline"><input type="checkbox" id="setDsmSso"> Anmeldung im DSM-Fenster ohne Passwort (Single Sign-on)</label>
+          <p class="small hidden" id="setSsoWarn" style="margin:0 0 6px"></p>
           <label class="inline"><input type="checkbox" id="setDsmLogin"> Login mit DSM-Benutzer und -Passwort erlauben</label>
           <label class="inline"><input type="checkbox" id="setDsmCreate"> unbekannte DSM-Benutzer automatisch anlegen (nur Lesen)</label>
           <label class="inline"><input type="checkbox" id="setDsmAdmins"> DSM-Administratoren bekommen Vollzugriff</label>
-          <label>DSM-Adresse für die Passwortprüfung <input id="setDsmUrl" placeholder="http://127.0.0.1:5000"></label>
-          <p class="muted small">Nur Adressen auf der NAS selbst (127.0.0.1 oder localhost, Port frei wählbar) – die Passwörter verlassen die NAS nie.</p>
+          <p class="muted small" style="margin:0 0 6px 26px">Wird wieder entzogen, wenn jemand kein DSM-Administrator mehr ist oder das hier ausgeschaltet wird.</p>
+          <label>DSM-Adresse für die Passwortprüfung <select id="setDsmUrl">
+            <option value="http://127.0.0.1:5000">http://127.0.0.1:5000 (DSM, Standard)</option>
+            <option value="https://127.0.0.1:5001">https://127.0.0.1:5001 (DSM über https)</option></select></label>
+          <p class="muted small">Nur die DSM-Anmeldung auf der NAS selbst – die Passwörter verlassen die NAS nie und gehen an keinen anderen Dienst.</p>
+        </fieldset>
+        <fieldset><legend>Zugriff</legend>
+          <label class="inline"><input type="checkbox" id="setHttp"> Unverschlüsselter Zugriff (http) aus dem Netz erlauben</label>
+          <p class="muted small" style="margin-top:2px">Aus: Die Weboberfläche gibt es nur im DSM-Fenster und über https (Reverse Proxy). Über http könnten
+            Passwörter und Anmeldungen im Netz mitgelesen werden. Agenten und die Paketquelle funktionieren in beiden Fällen.</p>
         </fieldset>
       </div>
       <div class="savebar">

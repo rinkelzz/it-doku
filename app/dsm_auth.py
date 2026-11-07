@@ -10,6 +10,7 @@ Zwei Wege:
 import hmac
 import json
 import os
+import re
 import secrets
 import sqlite3
 import ssl
@@ -55,18 +56,75 @@ def proxy_secret() -> str:
 LOOPBACK = frozenset({"127.0.0.1", "::1", "::ffff:127.0.0.1"})
 
 
-def publish_proxy_files() -> bool:
-    """Schlüssel und Port für ui/app.cgi neben das Paket legen (Paketordner, nicht im Web-Ordner)."""
+# Wie die Schlüsseldatei geschützt ist: "group" (nur Paket + Gruppe des DSM-Webservers), "world" (für alle lesbar,
+# weil das Paket die Gruppe nicht setzen darf), "off" (Anmeldung im DSM-Fenster ausgeschaltet), "" (nicht auf DSM)
+secret_mode = ""
+WEB_GROUPS = ("http",)
+
+
+def rotate_secret() -> None:
+    """Neuer Schlüssel bei jedem Start – ein irgendwann ausgelesener Schlüssel gilt nicht ewig.
+    Nur auf der NAS (dort wird er für app.cgi veröffentlicht)."""
+    global _secret
     if not settings.ui_dir:
+        return
+    _secret = secrets.token_urlsafe(32)
+    path = settings.data_dir / "proxy.secret"
+    try:
+        path.write_text(_secret, encoding="utf-8")
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
+def _restrict(path: Path) -> str:
+    """Datei nur für das Paket und die Gruppe des DSM-Webservers lesbar machen (app.cgi läuft als „http“).
+    Geht das nicht (Paketbenutzer ist nicht in der Gruppe), bleibt sie für alle lesbar – das meldet die App."""
+    try:
+        import grp
+        for name in WEB_GROUPS:
+            try:
+                gid = grp.getgrnam(name).gr_gid
+            except KeyError:
+                continue
+            try:
+                os.chown(path, -1, gid)
+                os.chmod(path, 0o640)
+                return "group"
+            except OSError:
+                break
+    except ImportError:
+        pass
+    os.chmod(path, 0o644)
+    return "world"
+
+
+def publish_proxy_files(enabled: bool = True) -> bool:
+    """Schlüssel und Port für ui/app.cgi neben das Paket legen (Paketordner, nicht im Web-Ordner).
+    Mit enabled=False (Anmeldung im DSM-Fenster aus) wird der Schlüssel entfernt."""
+    global secret_mode
+    if not settings.ui_dir:
+        secret_mode = ""
         return False
     target = Path(settings.ui_dir).parent
     try:
-        for name, content in ((".proxy_secret", proxy_secret()), (".port", str(settings.port))):
+        modes = []
+        for name, content in ((".proxy_secret", proxy_secret() if enabled else None), (".port", str(settings.port))):
             p = target / name
+            if content is None:
+                try:
+                    p.unlink()
+                except FileNotFoundError:
+                    pass
+                continue
             tmp = p.with_name(name + ".tmp")
             tmp.write_text(content, encoding="utf-8")
-            os.chmod(tmp, 0o644)  # der DSM-Webserver muss es lesen können
+            modes.append(_restrict(tmp) if name == ".proxy_secret" else (os.chmod(tmp, 0o644) or "port"))
             tmp.replace(p)
+        secret_mode = "off" if not enabled else ("group" if "group" in modes else "world")
+        if secret_mode == "world":
+            print("[itdoku] Hinweis: Der Schlüssel für das DSM-Fenster ist für alle lokalen Benutzer der NAS lesbar "
+                  "(Paket darf die Gruppe „http“ nicht setzen). Wer das nicht möchte: Verwaltung → System → DSM-Fenster.")
         return True
     except OSError as e:
         print(f"[itdoku] Proxy-Dateien nicht schreibbar: {e}")
@@ -74,9 +132,10 @@ def publish_proxy_files() -> bool:
 
 
 def proxy_info(request) -> Optional[Dict]:
-    """Prüft, ob die Anfrage über ui/app.cgi kam. Liefert {user, admin, base} oder None."""
+    """Prüft, ob die Anfrage über ui/app.cgi kam. Liefert {user, admin, base} oder None.
+    Ob der Benutzer DSM-Administrator ist, prüft die App selbst (Gruppe administrators) – dem Header wird nicht geglaubt."""
     sent = request.headers.get("x-itd-proxy-secret")
-    if not sent:
+    if not sent or secret_mode == "off":
         return None
     # app.cgi läuft auf der NAS und verbindet sich immer über 127.0.0.1 – von woanders zählt der Schlüssel nicht
     peer = request.scope.get("itd_peer", request.client.host if request.client else "")
@@ -85,9 +144,10 @@ def proxy_info(request) -> Optional[Dict]:
     if peer not in LOOPBACK or forwarded or not hmac.compare_digest(sent, proxy_secret()):
         return None
     user = urllib.parse.unquote(request.headers.get("x-dsm-user", "")).strip()
+    user = user[:USERNAME_MAX] if user else ""
     return {
-        "user": user[:USERNAME_MAX] if user else "",
-        "admin": request.headers.get("x-dsm-admin") == "1",
+        "user": user,
+        "admin": is_dsm_admin(user) if user else False,
         "base": request.headers.get("x-itd-proxy-base", "app.cgi"),
     }
 
@@ -107,23 +167,52 @@ def dsm_user_row(conn: sqlite3.Connection, username: str, dsm_admin: bool) -> Tu
     if row and not row["active"]:
         return None, "Dein Zugang zur IT-Dokumentation ist deaktiviert."
     make_admin = dsm_admin and _flag(conn, "dsm_admins")
+    if row and row["is_admin"] and row["admin_via_dsm"] and not make_admin:
+        # Vollzugriff kam nur aus DSM (Administrator + „DSM-Admins bekommen Vollzugriff“) – das gilt nicht mehr
+        admins = conn.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1 AND active = 1").fetchone()[0]
+        if admins > 1:
+            conn.execute("UPDATE users SET is_admin = 0, admin_via_dsm = 0 WHERE id = ?", (row["id"],))
+            from . import vault
+            note = ""
+            if vault.is_member(conn, row["id"]) and vault.member_count(conn) > 1 and vault.remove_user(conn, row["id"]):
+                note = ", Tresor-Zugang entfernt"
+            audit(conn, None, "user_admin_dsm", f"user:{row['id']}",
+                  f"Vollzugriff entzogen (kein DSM-Administrator mehr oder Zuordnung ausgeschaltet){note}")
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (row["id"],)).fetchone()
     if not row:
         if not (make_admin or _flag(conn, "dsm_auto_create")):
             return None, f"Für das DSM-Konto „{username}“ gibt es noch keinen Zugang zur IT-Dokumentation. Bitte beim Administrator melden."
         cur = conn.execute(
-            "INSERT INTO users(username, display_name, password_hash, is_admin, created_at) VALUES (?, ?, NULL, ?, ?)",
-            (username, username, int(make_admin), now_utc_str()),
+            "INSERT INTO users(username, display_name, password_hash, is_admin, admin_via_dsm, created_at) VALUES (?, ?, NULL, ?, ?, ?)",
+            (username, username, int(make_admin), int(make_admin), now_utc_str()),
         )
         audit(conn, None, "user_created_dsm", f"user:{cur.lastrowid}", f"{username}{' (Vollzugriff)' if make_admin else ''}")
         row = conn.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone()
     elif make_admin and not row["is_admin"]:
-        conn.execute("UPDATE users SET is_admin = 1 WHERE id = ?", (row["id"],))
+        conn.execute("UPDATE users SET is_admin = 1, admin_via_dsm = 1 WHERE id = ?", (row["id"],))
         audit(conn, None, "user_admin_dsm", f"user:{row['id']}", "DSM-Administrator")
         row = conn.execute("SELECT * FROM users WHERE id = ?", (row["id"],)).fetchone()
     return row, ""
 
 
+_admin_cache: Dict[str, Tuple[float, bool]] = {}
+
+
 def is_dsm_admin(username: str) -> bool:
+    now = time.time()
+    hit = _admin_cache.get(username)
+    if hit and now - hit[0] < 60:
+        return hit[1]
+    res = _is_dsm_admin(username)
+    if len(_admin_cache) > 1000:
+        _admin_cache.clear()
+    _admin_cache[username] = (now, res)
+    return res
+
+
+def _is_dsm_admin(username: str) -> bool:
+    if not re.fullmatch(r"[^\s/:]{1,64}", username or "") or username.startswith("-"):
+        return False
     try:
         res = subprocess.run(["id", "-Gn", username], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5)
         if "administrators" in res.stdout.decode("utf-8", "replace").split():
@@ -177,7 +266,15 @@ def local_dsm_url(url: str) -> Optional[str]:
         return None
     if (parts.hostname or "").lower() not in LOOPBACK_HOSTS:
         return None
-    if port is not None and not 1 <= port <= 65535:
+    # Nur die DSM-Anmeldeports der NAS selbst: sonst könnte ein Admin der App einen eigenen Dienst auf der NAS
+    # (anderer Port) als „DSM“ eintragen und die eingegebenen DSM-Passwörter mitlesen.
+    allowed = {"http": {5000}, "https": {5001}}
+    extra = os.environ.get("ITD_DSM_PORTS", "")  # z. B. „5080,5443“, wenn DSM auf anderen Ports läuft (Paketkonfiguration)
+    for p in extra.split(","):
+        if p.strip().isdigit():
+            allowed["http"].add(int(p))
+            allowed["https"].add(int(p))
+    if (port or (80 if parts.scheme == "http" else 443)) not in allowed[parts.scheme]:
         return None
     return url
 
@@ -234,13 +331,20 @@ _lock = threading.Lock()
 MAX_FAILS, WINDOW_S = 5, 15 * 60
 # Zusätzlich pro Benutzername, egal von welcher Adresse (gegen verteiltes Durchprobieren)
 MAX_FAILS_PER_NAME = 10
+# Und pro Adresse, egal welcher Name (gegen Durchprobieren vieler Namen von einer Stelle)
+MAX_FAILS_PER_IP = 30
 
 
 def too_many_attempts(key: str, limit: int = MAX_FAILS) -> bool:
     now = time.time()
     with _lock:
-        recent = [t for t in _fails.get(key, []) if now - t < WINDOW_S]
-        _fails[key] = recent
+        if key not in _fails:  # Nachsehen legt nichts an – sonst füllen neue Namen den Speicher
+            return False
+        recent = [t for t in _fails[key] if now - t < WINDOW_S]
+        if recent:
+            _fails[key] = recent
+        else:
+            del _fails[key]
         return len(recent) >= limit
 
 
@@ -256,12 +360,19 @@ def _prune(now: float) -> None:
             del _fails[k]
 
 
+_last_prune = [0.0]
+
+
 def note_failure(key: str) -> None:
     now = time.time()
     with _lock:
-        if len(_fails) >= MAX_KEYS:
-            _prune(now)
-        _fails.setdefault(key, []).append(now)
+        if len(_fails) >= MAX_KEYS or now - _last_prune[0] > 60:
+            _prune(now)  # regelmäßig und bei Erreichen der Obergrenze alles Abgelaufene entfernen
+            _last_prune[0] = now
+        lst = _fails.setdefault(key, [])
+        lst.append(now)
+        if len(lst) > 100:
+            del lst[:-100]
 
 
 def clear_failures(key: str) -> None:

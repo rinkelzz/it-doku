@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from ..config import THEMES, settings
 from ..db import audit, get_db, get_setting
 from ..dsm_auth import (
+    MAX_FAILS_PER_IP,
     MAX_FAILS_PER_NAME,
     clear_failures,
     dsm_password_check,
@@ -66,7 +67,8 @@ def login(data: LoginIn, request: Request, response: Response, conn: sqlite3.Con
     # Sperre pro Name+Adresse (5 Fehlversuche) und pro Name insgesamt (10), je 15 Minuten
     key = f"{username.lower()}|{client_ip(request)}"
     name_key = f"{username.lower()}|*"
-    if too_many_attempts(key) or too_many_attempts(name_key, MAX_FAILS_PER_NAME):
+    ip_key = f"*|{client_ip(request)}"
+    if too_many_attempts(key) or too_many_attempts(name_key, MAX_FAILS_PER_NAME) or too_many_attempts(ip_key, MAX_FAILS_PER_IP):
         raise HTTPException(429, "Zu viele Fehlversuche – bitte in 15 Minuten erneut versuchen")
     user = conn.execute("SELECT * FROM users WHERE username = ? AND active = 1", (username,)).fetchone()
     via = "local"
@@ -80,6 +82,7 @@ def login(data: LoginIn, request: Request, response: Response, conn: sqlite3.Con
             if result == "otp_wrong":
                 note_failure(key)
                 note_failure(name_key)
+                note_failure(ip_key)
                 raise HTTPException(401, "Zwei-Faktor-Code falsch")
             if result == "ok":
                 user, error = dsm_user_row(conn, username, is_dsm_admin(username))
@@ -89,6 +92,7 @@ def login(data: LoginIn, request: Request, response: Response, conn: sqlite3.Con
         if not user:
             note_failure(key)
             note_failure(name_key)
+            note_failure(ip_key)
             raise HTTPException(401, "Benutzername oder Passwort falsch")
     clear_failures(key)
     token = create_session(conn, user["id"])

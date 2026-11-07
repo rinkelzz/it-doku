@@ -17,6 +17,8 @@ if [ ! -f "${CONFIG}" ]; then
         echo "ITD_ROOT_PATH=\"\""
         echo "ITD_COOKIE_SECURE=0"
         echo "ITD_TIMEZONE=\"Europe/Berlin\""
+        echo "# ITD_HOST=127.0.0.1   # nur über die NAS selbst erreichbar (DSM-Fenster, DSM-Reverse-Proxy) – dann keine Agenten im LAN"
+        echo "# ITD_DSM_PORTS=5080   # falls DSM auf anderen Ports als 5000/5001 läuft (für die DSM-Passwortprüfung)"
     } > "${CONFIG}"
 fi
 

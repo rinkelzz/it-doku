@@ -30,6 +30,8 @@ class SettingsIn(BaseModel):
     dsm_auto_create: Optional[bool] = None
     dsm_admins: Optional[bool] = None
     dsm_url: Optional[str] = Field(None, max_length=200)
+    dsm_sso: Optional[bool] = Field(None, description="Anmeldung im DSM-Fenster (Single Sign-on)")
+    http_access: Optional[bool] = Field(None, description="Weboberfläche über unverschlüsseltes http aus dem Netz erlauben")
     smtp_host: Optional[str] = Field(None, max_length=200)
     smtp_port: Optional[int] = Field(None, ge=1, le=65535)
     smtp_security: Optional[str] = Field(None, description="starttls, ssl oder none")
@@ -39,7 +41,12 @@ class SettingsIn(BaseModel):
     smtp_from_name: Optional[str] = Field(None, max_length=100)
 
 
-ADMIN_ONLY = ("smtp_", "dsm_url", "public_url_env")
+ADMIN_ONLY = ("smtp_", "dsm_url", "dsm_secret_mode", "public_url_env")
+
+
+def _secret_mode() -> str:
+    from .. import dsm_auth
+    return dsm_auth.secret_mode
 
 
 def settings_out(conn) -> dict:
@@ -54,6 +61,9 @@ def settings_out(conn) -> dict:
         "dsm_auto_create": get_setting(conn, "dsm_auto_create") == "1",
         "dsm_admins": get_setting(conn, "dsm_admins") == "1",
         "dsm_url": get_setting(conn, "dsm_url"),
+        "dsm_sso": get_setting(conn, "dsm_sso") != "0",
+        "dsm_secret_mode": _secret_mode(),
+        "http_access": get_setting(conn, "http_access") == "1",
         "smtp_host": get_setting(conn, "smtp_host"),
         "smtp_port": int(get_setting(conn, "smtp_port") or 587),
         "smtp_security": get_setting(conn, "smtp_security") or "starttls",
@@ -80,15 +90,34 @@ def update_settings(data: SettingsIn, admin=Depends(admin_user), conn: sqlite3.C
         if data.theme_default not in THEMES:
             raise HTTPException(400, "Unbekanntes Design")
         set_setting(conn, "theme_default", data.theme_default)
-    for key in ("dsm_login", "dsm_auto_create", "dsm_admins"):
+    for key in ("dsm_login", "dsm_auto_create", "dsm_admins", "http_access"):
         if changes.get(key) is not None:
             set_setting(conn, key, "1" if changes[key] else "0")
+    if changes.get("http_access") is not None:
+        from .. import httpguard
+        httpguard.configure("1" if data.http_access else "0")
+    if changes.get("dsm_admins") is False:
+        # Vollzugriff, der nur aus DSM kam, sofort entziehen (nicht erst bei der nächsten Anmeldung)
+        from .. import vault
+        for u in conn.execute("SELECT id, username FROM users WHERE is_admin = 1 AND admin_via_dsm = 1").fetchall():
+            if conn.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1 AND active = 1").fetchone()[0] <= 1:
+                break
+            conn.execute("UPDATE users SET is_admin = 0, admin_via_dsm = 0 WHERE id = ?", (u["id"],))
+            if vault.is_member(conn, u["id"]) and vault.member_count(conn) > 1:
+                vault.remove_user(conn, u["id"])
+            audit(conn, admin["id"], "user_admin_dsm", f"user:{u['id']}", f"{u['username']}: Vollzugriff aus DSM entzogen")
+    if changes.get("dsm_sso") is not None:
+        from ..dsm_auth import publish_proxy_files, rotate_secret
+        set_setting(conn, "dsm_sso", "1" if data.dsm_sso else "0")
+        if data.dsm_sso:
+            rotate_secret()
+        publish_proxy_files(bool(data.dsm_sso))
     if changes.get("dsm_url"):
         from ..dsm_auth import local_dsm_url
         url = local_dsm_url(data.dsm_url)
         if not url:
-            raise HTTPException(400, "Die DSM-Adresse muss auf die NAS selbst zeigen, z. B. http://127.0.0.1:5000 "
-                                     "oder https://localhost:5001 – andere Rechner sind aus Sicherheitsgründen nicht erlaubt.")
+            raise HTTPException(400, "Erlaubt sind nur die DSM-Anmeldeports der NAS selbst: http://127.0.0.1:5000 oder "
+                                     "https://127.0.0.1:5001 – andere Rechner und Ports sind aus Sicherheitsgründen nicht erlaubt.")
         set_setting(conn, "dsm_url", url)
     for key in ("smtp_host", "smtp_user", "smtp_from_name"):
         if key in changes:

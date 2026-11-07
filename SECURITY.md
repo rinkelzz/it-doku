@@ -10,17 +10,36 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
 
 - **Passwörter** werden mit PBKDF2-SHA256 (200 000 Runden, eigenes Salz) gespeichert, Sitzungen nur als
   SHA-256-Hash. Beim Passwortwechsel und beim Deaktivieren eines Benutzers enden alle seine Sitzungen.
-- **Login-Sperre:** 5 Fehlversuche pro Benutzername und Adresse, 10 pro Benutzername insgesamt – jeweils
-  15 Minuten. Die Tabelle ist in der Größe begrenzt, sie lässt sich nicht volllaufen lassen.
+- **Login-Sperre:** 5 Fehlversuche pro Benutzername und Adresse, 10 pro Benutzername insgesamt und 30 pro Adresse
+  (gleich welcher Name) – jeweils 15 Minuten. Die Tabelle ist in der Größe begrenzt (50 000 Einträge), Abgelaufenes
+  wird regelmäßig entfernt, und bloßes Nachsehen legt keine Einträge an.
+- **Kein http aus dem Netz (Standard):** Die Weboberfläche gibt es nur über das DSM-Fenster, über die NAS selbst
+  (DSM-Reverse-Proxy) und über https (auch über einen eingetragenen eigenen Reverse Proxy). Direkte http-Zugriffe aus
+  dem Netz bekommen eine Hinweisseite; nur Agenten, Agent-Skripte, Paketquelle und Statuscheck bleiben erreichbar.
+  Einschaltbar unter Verwaltung → System → Zugriff bzw. `ITD_HTTP_ACCESS=1`. Die App lauscht weiter auf allen
+  Schnittstellen (`ITD_HOST=0.0.0.0`), weil Agenten im LAN und ein Reverse Proxy auf einem anderen Gerät sie erreichen
+  müssen; wer beides nicht braucht, setzt `ITD_HOST=127.0.0.1` in der Paketkonfiguration.
 - **CSRF:** Änderungen per Login-Cookie werden nur von der eigenen Seite angenommen (`Sec-Fetch-Site`
   bzw. `Origin`/`Referer`). Läuft die App hinter einem Proxy, der den `Host`-Header umschreibt, die
   **Öffentliche Adresse** in den Einstellungen eintragen.
 - **DSM-Konten:** Per Single Sign-on kommen standardmäßig nur DSM-Administratoren und vom Admin angelegte Benutzer
   hinein. Unbekannte DSM-Konten werden nicht automatisch angelegt (einschaltbar, dann nur mit Lesezugriff).
-- **DSM-Passwortprüfung** nur gegen die NAS selbst (`127.0.0.1`, `localhost`, `::1` – der Hostname wird
-  exakt geprüft), ohne Proxy-Umgebungsvariablen und ohne Weiterleitungen. DSM-Passwörter verlassen die NAS nie.
+  Ob jemand DSM-Administrator ist, prüft die App selbst (Gruppe `administrators`) – ein mitgeschickter Header zählt
+  nicht. Vollzugriff, der nur aus DSM kam, wird wieder entzogen, sobald die Person kein DSM-Administrator mehr ist
+  oder „DSM-Administratoren bekommen Vollzugriff“ ausgeschaltet wird; von Hand vergebener Vollzugriff bleibt.
+- **DSM-Passwortprüfung** nur gegen die DSM-Anmeldung der NAS selbst: `http://127.0.0.1:5000` oder
+  `https://127.0.0.1:5001` (andere Ports nur per `ITD_DSM_PORTS` in der Paketkonfiguration, nicht über die Oberfläche),
+  ohne Proxy-Umgebungsvariablen und ohne Weiterleitungen. DSM-Passwörter verlassen die NAS nie und gehen an keinen
+  anderen Dienst. Bei https über Loopback wird das Zertifikat nicht geprüft (DSM nutzt dort meist ein nicht auf
+  127.0.0.1 ausgestelltes Zertifikat); die Verbindung verlässt die NAS nicht.
 - **Single Sign-on im DSM-Fenster:** Der Schlüssel (`.proxy_secret` im Paketordner) wird nur von
   Verbindungen über 127.0.0.1 ohne `X-Forwarded-For` angenommen, also nur von `app.cgi` auf der NAS selbst.
+  Er wird bei jedem Start neu erzeugt. `app.cgi` läuft als Benutzer des DSM-Webservers (`http`), die Datei muss für
+  ihn lesbar sein: Die App versucht, sie auf die Gruppe `http` mit Modus 0640 zu beschränken. Darf das Paket die Gruppe
+  nicht setzen, bleibt sie für alle lokalen Benutzer der NAS lesbar – die Verwaltung zeigt dann einen Hinweis.
+  **Restrisiko:** Wer auf der NAS Programme als anderer Benutzer ausführen kann (Konsolenzugang, fremdes Paket), kann
+  den Schlüssel lesen und sich als beliebiger DSM-Benutzer ausgeben. Wer das ausschließen will, schaltet unter
+  Verwaltung → System die **Anmeldung im DSM-Fenster** aus; der Schlüssel wird dann gelöscht und nicht mehr angenommen.
 - **Echte Absenderadresse** (`X-Forwarded-For`) wird nur übernommen, wenn die Anfrage vom Reverse Proxy
   auf derselben NAS (127.0.0.1) kommt oder von einem Proxy, der unter **Verwaltung → System → Eigener Reverse Proxy**
   (bzw. `ITD_TRUSTED_PROXIES`) eingetragen ist. Bei einer Kette zählt von rechts die erste Adresse, die selbst kein

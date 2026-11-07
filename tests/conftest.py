@@ -9,3 +9,4 @@ os.environ["ITD_SCHEDULER"] = "0"
 os.environ["ITD_UPDATE_CHECK"] = "0"
 os.environ["ITD_SELF_RESTART"] = "0"
 os.environ["ITD_KDF_ITERATIONS"] = "1000"  # Tests: schnell statt sicher
+os.environ["ITD_HTTP_ACCESS"] = "1"  # TestClient spricht http – die Sperre wird in test_security_review.py eigens geprüft
