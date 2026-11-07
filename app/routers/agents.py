@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from .. import agents
+from .. import agents, seal
 from ..csvsafe import row as safe_row
 from ..db import audit, get_db, get_setting, set_setting
 from ..doku import get_or_404
@@ -84,8 +84,13 @@ def agent_config(request: Request, conn: sqlite3.Connection = Depends(get_db)):
     agent = _auth_agent(request, conn)
     conn.execute("UPDATE agents SET last_contact_at = ? WHERE id = ?", (now_utc_str(), agent["id"]))
     from .. import netscan
-    return {"report_due": agents.report_due(agent), "scan": agents.scan_due(conn, agent),
-            "quick_ports": netscan.QUICK_PORTS, "ports": netscan.ALL_PORTS, "max_hosts": netscan.MAX_HOSTS}
+    out = {"report_due": agents.report_due(agent), "scan": agents.scan_due(conn, agent),
+           "quick_ports": netscan.QUICK_PORTS, "ports": netscan.ALL_PORTS, "max_hosts": netscan.MAX_HOSTS,
+           # Produktschlüssel nur schicken lassen, wenn er sofort versiegelt werden kann
+           "want_windows_key": get_setting(conn, "agent_winkey") != "0" and seal.public_key(conn) is not None}
+    if get_setting(conn, "agent_autoupdate") != "0":
+        out["update"] = {name: info for name, info in script_versions().items()}
+    return out
 
 
 @router.post("/api/agent/v1/scan", include_in_schema=False)
@@ -104,6 +109,21 @@ async def agent_scan(request: Request, conn: sqlite3.Connection = Depends(get_db
     audit(conn, None, "scan_run", "scan", f"Netzwerk-Scan (Agent „{agent['name']}“, {r['networks']}): "
                                           f"{r['hosts_up']} von {r['addresses']} Adressen online")
     return {"ok": True, "run_id": run_id, "hosts_up": r["hosts_up"]}
+
+
+_versions: dict = {}
+
+
+def script_versions() -> dict:
+    """Version und SHA-256 der mitgelieferten Agent-Skripte (für das Selbstupdate)."""
+    import hashlib
+    import re as _re
+    out = {}
+    for name in SCRIPTS:
+        data = (AGENT_DIR / name).read_bytes()
+        m = _re.search(rb'^VERSION = "([\d.]+)"', data, _re.M) or _re.search(rb"^\$AgentVersion = '([\d.]+)'", data, _re.M)
+        out[name] = {"version": m.group(1).decode() if m else "", "sha256": hashlib.sha256(data).hexdigest(), "path": "/agent/" + name}
+    return out
 
 
 @router.get("/agent/{name}", include_in_schema=False)
@@ -180,7 +200,11 @@ def list_agents(request: Request, admin=Depends(admin_user), conn: sqlite3.Conne
     days = agents.stale_days(conn)
     return {"agents": [_agent_out(conn, r, days) for r in conn.execute(SELECT + " ORDER BY a.name COLLATE NOCASE")],
             "settings": {"agent_url": get_setting(conn, "agent_url"), "agent_url_lan": get_setting(conn, "agent_url_lan"),
-                         "urls": _urls(conn, request), "stale_days": days, "port": settings.port}}
+                         "urls": _urls(conn, request), "stale_days": days, "port": settings.port,
+                         "autoupdate": get_setting(conn, "agent_autoupdate") != "0", "winkey": get_setting(conn, "agent_winkey") != "0",
+                         "vault_ready": seal.public_key(conn) is not None,
+                         "latest": {"windows": script_versions()["itdoku-agent.ps1"]["version"],
+                                    "linux": script_versions()["itdoku-agent.py"]["version"]}}}
 
 
 class AgentIn(BaseModel):
@@ -266,6 +290,8 @@ def delete_agent(agent_id: int, admin=Depends(admin_user), conn: sqlite3.Connect
 
 
 class AgentSettings(BaseModel):
+    autoupdate: Optional[bool] = None
+    winkey: Optional[bool] = None
     agent_url: Optional[str] = Field(None, max_length=300)
     agent_url_lan: Optional[str] = Field(None, max_length=300)
     stale_days: Optional[int] = Field(None, ge=1, le=60)
@@ -283,6 +309,10 @@ def agent_settings(data: AgentSettings, admin=Depends(admin_user), conn: sqlite3
         set_setting(conn, key, url)
     if data.stale_days is not None:
         set_setting(conn, "agent_stale_days", str(data.stale_days))
+    if data.autoupdate is not None:
+        set_setting(conn, "agent_autoupdate", "1" if data.autoupdate else "0")
+    if data.winkey is not None:
+        set_setting(conn, "agent_winkey", "1" if data.winkey else "0")
     audit(conn, admin["id"], "settings_updated", "agents", f"Agenten: {data.model_dump(exclude_unset=True)}")
     return {"ok": True}
 

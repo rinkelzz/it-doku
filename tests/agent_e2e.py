@@ -51,6 +51,13 @@ def main() -> int:
                        (agents.token_hash(token), agents.hint(token))).lastrowid
     args = sys.argv[1:]
     expect_scan = "--expect-scan" in args
+    with_vault = "--with-vault" in args
+    seal_priv = None
+    if with_vault:
+        args.remove("--with-vault")
+        from app import seal
+        seal_priv, pub = seal.keypair()  # Tresor „entsperrt gewesen“: öffentlicher Schlüssel liegt bereit
+        conn.execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES ('vault_seal_pub', ?)", (pub.hex(),))
     if expect_scan:
         args.remove("--expect-scan")
         # Netz, das der Agent vor Ort scannen soll (Loopback: 127.0.0.1 antwortet immer)
@@ -76,6 +83,20 @@ def main() -> int:
                "device": dict(d)}
     print(json.dumps(summary, indent=2, ensure_ascii=False, default=str)[:4000])
     problems = [k for k in ("platform", "hostname", "os", "cpu", "ram_mb", "disks", "interfaces", "software") if not summary[k]]
+    if rep["platform"] == "windows":
+        lic = conn.execute("SELECT * FROM licenses WHERE agent_ref = ?", (f"agent:{aid}:windows",)).fetchone()
+        print("Windows-Lizenz:", dict(lic) if lic else None, rep.get("windows_license"))
+        if not lic:
+            problems.append("Windows-Lizenz")
+        elif lic["key_sealed"] and seal_priv:
+            from app import seal
+            from app.winlicense import KEY_RE
+            key = seal.open_sealed(seal_priv, lic["key_sealed"], f"license:{lic['id']}:key")
+            print("Schlüssel entsiegelt: …" + key[-5:])
+            if not KEY_RE.match(key):
+                problems.append("Schlüsselformat")
+        if "key" in (rep.get("windows_license") or {}):
+            problems.append("Schlüssel im Bericht")
     if expect_scan:
         run = conn.execute("SELECT * FROM scan_runs WHERE agent_id = ?", (aid,)).fetchone()
         hosts = [dict(h) for h in conn.execute("SELECT ip, ports FROM scan_hosts WHERE run_id = ?", (run["id"],))] if run else []

@@ -232,10 +232,15 @@ def set_license_key(license_id: int, data: LicenseKeyIn, request: Request, admin
     lic = get_or_404(conn, "license", license_id)
     key = vault.require_key(request, admin)
     value = data.key.strip()
-    conn.execute("UPDATE licenses SET key_enc = ?, updated_at = ? WHERE id = ?",
-                 (vault.seal(key, value, f"license:{license_id}:key"), now_utc_str(), license_id))
+    conn.execute("UPDATE licenses SET key_enc = ?, key_sealed = NULL, key_fp = ?, updated_at = ? WHERE id = ?",
+                 (vault.seal(key, value, f"license:{license_id}:key"), _fp(value) if value else None, now_utc_str(), license_id))
     log(conn, admin, "doc_updated", "license", license_id, lic["name"], "Lizenzschlüssel " + ("gesetzt" if value else "entfernt"))
     return {"has_key": bool(value)}
+
+
+def _fp(value: str) -> str:
+    from ..winlicense import fingerprint
+    return fingerprint(value.strip().upper())
 
 
 class PurposeIn(BaseModel):
@@ -247,7 +252,15 @@ def reveal_license_key(license_id: int, data: PurposeIn, request: Request, admin
                        conn: sqlite3.Connection = Depends(get_db)):
     lic = get_or_404(conn, "license", license_id)
     key = vault.require_key(request, admin)
-    value = vault.unseal(key, lic["key_enc"], f"license:{license_id}:key")
+    value = vault.unseal(key, lic["key_enc"], f"license:{license_id}:key") if lic["key_enc"] else ""
+    if not value and lic["key_sealed"]:
+        # vom Agent versiegelt → mit dem privaten Tresor-Schlüssel öffnen und gleich in die normale Form überführen
+        from .. import seal
+        priv = seal.private_key(conn, key)
+        if priv:
+            value = seal.open_sealed(priv, lic["key_sealed"], f"license:{license_id}:key")
+            conn.execute("UPDATE licenses SET key_enc = ?, key_sealed = NULL WHERE id = ?",
+                         (vault.seal(key, value, f"license:{license_id}:key"), license_id))
     if not value:
         raise HTTPException(404, "Kein Lizenzschlüssel hinterlegt")
     action = "secret_copied" if data.purpose == "copy" else "secret_shown"

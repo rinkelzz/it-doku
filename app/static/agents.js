@@ -97,6 +97,16 @@ async function agToggle(a, after) {
   try { await api(`agents/${a.id}`, { method: "PATCH", body: { disabled: !a.disabled } }); if (after) after(); } catch (e) { alert(e.message); }
 }
 
+// Neuere Agent-Version vorhanden? (liefert die neue Version oder "")
+function agOld(a) {
+  const latest = (agState.settings.latest || {})[a.platform === "windows" ? "windows" : "linux"];
+  if (!latest || !a.agent_version) return "";
+  const v = (s) => s.split(".").map(Number);
+  const [x, y] = [v(a.agent_version), v(latest)];
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0) ? latest : ""; }
+  return "";
+}
+
 // ---------- Verwaltung → Agenten ----------
 async function loadAgents() {
   const r = await api("agents");
@@ -110,6 +120,10 @@ async function loadAgents() {
   const st = $("agStale");
   if (![...st.options].some(o => o.value === String(r.settings.stale_days))) st.insertAdjacentHTML("beforeend", `<option value="${r.settings.stale_days}">${r.settings.stale_days} Tagen</option>`);
   st.value = String(r.settings.stale_days);
+  $("agAuto").checked = r.settings.autoupdate; $("agWinkey").checked = r.settings.winkey;
+  $("agWinkeyHint").querySelector(".vaultnote")?.remove();
+  if (r.settings.winkey && !r.settings.vault_ready) $("agWinkeyHint").insertAdjacentHTML("beforeend",
+    ' <span class="vaultnote"><span class="tag warn">Tresor</span> Den Tresor einmal einrichten bzw. entsperren – erst dann nimmt die App Schlüssel an.</span>');
   $("agTable").innerHTML = r.agents.length ? `<thead><tr><th>Name</th><th>Gerät</th><th>System</th><th>Letzter Bericht</th></tr></thead><tbody>
     ${r.agents.map(a => {
       const p = a.problems || {};
@@ -117,7 +131,7 @@ async function loadAgents() {
                     (p.services_stopped || []).length ? `${p.services_stopped.length} Dienst${p.services_stopped.length > 1 ? "e" : ""} gestoppt` : ""].filter(Boolean);
       return `<tr data-ag="${a.id}" class="click" title="Bearbeiten, sperren, neuer Schlüssel"><td><b>${esc(a.name)}</b>${a.disabled ? ' <span class="tag off">gesperrt</span>' : ""}<br><small class="muted mono">${esc(a.token_hint)}</small>${(a.scans || []).length ? `<br><span class="tag" title="scannt vor Ort">🔍 ${esc(a.scans.join(", "))}</span>` : ""}</td>
       <td>${a.device_id ? `<a href="#devices/${a.device_id}">${esc(a.device_icon || "🖥️")} ${esc(a.device_name)}</a>` : '<span class="muted">wird beim ersten Bericht zugeordnet</span>'}</td>
-      <td>${esc(a.os_name || a.platform_label || "–")}${warn.length ? `<br>${warn.map(w => `<span class="tag warn">${esc(w)}</span>`).join(" ")}` : ""}</td>
+      <td>${esc(a.os_name || a.platform_label || "–")}${agOld(a) ? ` <span class="tag" title="Neue Version ${esc(agOld(a))} verfügbar">Agent ${esc(a.agent_version)} → ${esc(agOld(a))}</span>` : ""}${warn.length ? `<br>${warn.map(w => `<span class="tag warn">${esc(w)}</span>`).join(" ")}` : ""}</td>
       <td class="nowrap" data-sort="${esc(a.last_report_at || "")}">${a.last_report_at ? (a.stale ? `<span class="tag bad">${agAgo(a.last_report_at)}</span>` : agAgo(a.last_report_at)) : '<span class="muted">wartet</span>'}</td>
 </tr>`;
     }).join("")}</tbody>` : '<tbody><tr><td class="muted">Noch kein Agent. Mit „＋ Agent“ einen Schlüssel erzeugen und den angezeigten Befehl auf dem Server ausführen.</td></tr></tbody>';
@@ -160,7 +174,7 @@ $("agSave").onclick = async () => {
   $("agSetErr").textContent = "";
   try {
     await api("agents-settings", { method: "PATCH", body: { agent_url: $("agUrl").value.trim(), agent_url_lan: $("agUrlLan").value.trim(),
-      stale_days: Number($("agStale").value) } });
+      stale_days: Number($("agStale").value), autoupdate: $("agAuto").checked, winkey: $("agWinkey").checked } });
     await loadAgents(); okMsg($("agSetErr"), "Gespeichert.");
   } catch (e) { $("agSetErr").textContent = e.message; }
 };
@@ -225,7 +239,12 @@ async function agentPanel(d, reload) {
             ["Läuft seit", since ? (powerOn
               ? `${sinceText(powerOn)} (eingeschaltet ${esc(fmtDT(powerOn))}) <span class="muted small" title="Bei aktivem Windows-Schnellstart ist Herunterfahren eigentlich Ruhezustand – Updates, die einen Neustart brauchen, greifen erst nach „Neu starten“.">· letzter echter Neustart ${esc(fmtDT(p.boot_time))} (Schnellstart)</span>`
               : `${sinceText(since)} (Start ${esc(fmtDT(p.boot_time))})${p.fast_startup ? ' <span class="muted small">· Schnellstart an</span>' : ""}`) : ""],
-            ["Angemeldet", esc(p.logged_in_user)]])}
+            ["Angemeldet", esc(p.logged_in_user)],
+            ["Windows-Lizenz", p.windows_license ? esc([p.windows_license.channel, p.windows_license.status,
+              p.windows_license.partial ? "…" + p.windows_license.partial : ""].filter(Boolean).join(" · ")) +
+              (p.windows_license.digital ? ' <span class="muted small">· digitale Lizenz, kein eigener Schlüssel</span>'
+                : p.windows_license.key_stored ? ` <span class="muted small">· Schlüssel${p.windows_license.key_source ? " aus " + esc(p.windows_license.key_source) : ""} im Tresor (unter Lizenzen)</span>`
+                : p.windows_license.key_source ? ' <span class="muted small">· Schlüssel wird übernommen, sobald der Tresor einmal entsperrt wurde</span>' : "") : ""]])}
       ${kv([["Updates", u.pending == null ? (u.error ? `<span class="muted">${esc(u.error)}</span>` : "") :
               (u.pending ? `<span class="tag warn">${u.pending} ausstehend</span>${u.security ? ` <span class="tag bad">${u.security} Sicherheit</span>` : ""}` : '<span class="tag okk">aktuell</span>')
               + (u.last_installed ? ` · zuletzt ${esc(deDate(u.last_installed.slice(0, 10)))}` : "")],

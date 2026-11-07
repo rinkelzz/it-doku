@@ -34,7 +34,7 @@ if ($PSVersionTable.PSVersion.Major -lt 6) {
   $machine = [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine')
   if ($machine) { $env:PSModulePath = "$env:ProgramFiles\WindowsPowerShell\Modules;$machine" }
 }
-$AgentVersion = '1.1'
+$AgentVersion = '1.3'
 $Dir = Join-Path $env:ProgramData 'ITDoku'
 $ConfFile = Join-Path $Dir 'config.json'
 $ScriptFile = Join-Path $Dir 'itdoku-agent.ps1'
@@ -175,7 +175,23 @@ function Get-PowerOn {
   $res
 }
 
-function Get-Report {
+function Get-WindowsLicense([bool]$WithKey) {
+  # Edition, Kanal (OEM/Retail/Volumen), Aktivierung, Teilschlüssel – und nur wenn die IT-Dokumentation ihn sofort
+  # versiegeln kann ($WithKey): OEM-Schlüssel aus der Firmware und DigitalProductId (daraus wird der Schlüssel berechnet)
+  $p = Get-CimInstance SoftwareLicensingProduct -Filter "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" |
+    Select-Object -First 1
+  $caption = ((Get-CimInstance Win32_OperatingSystem).Caption -replace '^Microsoft\s+', '').Trim()
+  $res = @{ edition = $caption; description = "$($p.Description)"; status = [int]$p.LicenseStatus; partial = "$($p.PartialProductKey)" }
+  if ($WithKey) {
+    $oem = Part { (Get-CimInstance SoftwareLicensingService).OA3xOriginalProductKey } ''
+    if ($oem) { $res.oem_key = "$oem" }
+    $dpid = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name DigitalProductId -ErrorAction SilentlyContinue).DigitalProductId
+    if ($dpid) { $res.dpid = [Convert]::ToBase64String([byte[]]$dpid) }
+  }
+  $res
+}
+
+function Get-Report([bool]$WithKey = $false) {
   $os = Get-CimInstance Win32_OperatingSystem
   $power = Part { Get-PowerOn } @{ power_on_time = ''; fast_startup = $null }
   $cs = Get-CimInstance Win32_ComputerSystem
@@ -196,6 +212,7 @@ function Get-Report {
     software = @(Part { Get-Software } @())
     updates = (Part { Get-Updates } @{})
     services = @(Part { Get-Services } @())
+    windows_license = (Part { Get-WindowsLicense $WithKey } $null)
   }
 }
 
@@ -241,6 +258,36 @@ function Send-Report($Conf, $Report) {
   throw "Senden fehlgeschlagen: $last"
 }
 
+function Get-AgentConfig($Conf) {
+  # Nachfrage bei der IT-Dokumentation: Selbstupdate, ob der Produktschlüssel gewünscht ist (ältere Versionen: $null)
+  [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+  $p = @{ Uri = "$($Conf.url)/api/agent/v1/config"; Method = 'Get'; Headers = @{ Authorization = "Bearer $($Conf.token)" };
+          UserAgent = "itdoku-agent/$AgentVersion"; TimeoutSec = 60 }
+  if ($PSVersionTable.PSVersion.Major -lt 6) { $p.UseBasicParsing = $true } elseif ($Conf.insecure) { $p.SkipCertificateCheck = $true }
+  try { return Invoke-RestMethod @p } catch { return $null }
+}
+
+function Update-Self($Conf, $Cfg) {
+  # Neuere Version nur von der eigenen IT-Dokumentation, nur mit passender SHA-256-Prüfsumme, nur die installierte Datei
+  $info = $null
+  if ($Cfg -and $Cfg.update) { $info = $Cfg.update.'itdoku-agent.ps1' }
+  if (-not $info -or -not $info.version) { return }
+  try { if ([version]$info.version -le [version]$AgentVersion) { return } } catch { return }
+  if (-not $PSCommandPath -or ((Resolve-Path $PSCommandPath).Path -ne $ScriptFile)) { return }
+  $tmp = "$ScriptFile.new"
+  $p = @{ Uri = "$($Conf.url)$($info.path)"; OutFile = $tmp; TimeoutSec = 60; UserAgent = "itdoku-agent/$AgentVersion" }
+  if ($PSVersionTable.PSVersion.Major -lt 6) { $p.UseBasicParsing = $true } elseif ($Conf.insecure) { $p.SkipCertificateCheck = $true }
+  try { Invoke-WebRequest @p } catch { Write-Warning "Update nicht geladen: $($_.Exception.Message)"; return }
+  $hash = (Get-FileHash -Algorithm SHA256 -Path $tmp).Hash.ToLower()
+  if ($hash -ne "$($info.sha256)".ToLower()) {
+    Remove-Item -Path $tmp -Force -ErrorAction SilentlyContinue
+    Write-Warning 'Update verworfen: Prüfsumme passt nicht.'
+    return
+  }
+  Move-Item -Path $tmp -Destination $ScriptFile -Force
+  Write-Host "Agent aktualisiert: $AgentVersion -> $($info.version) (gilt ab dem nächsten Lauf)"
+}
+
 function Read-Conf {
   if (-not (Test-Path $ConfFile)) { throw "Keine Konfiguration in $ConfFile – zuerst mit -Install -Url … -Token … einrichten." }
   Get-Content $ConfFile -Raw | ConvertFrom-Json
@@ -271,7 +318,8 @@ function Install-Agent {
   Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger @($daily, $boot) -Settings $settings -Principal $principal -Force | Out-Null
   Write-Host "Eingerichtet: geplante Aufgabe '$TaskName' (täglich und nach dem Start)."
   Write-Host 'Erster Bericht wird gesammelt – die Suche nach Windows-Updates kann ein paar Minuten dauern …'
-  $res = Send-Report $conf (Get-Report)
+  $cfg = Get-AgentConfig $conf
+  $res = Send-Report $conf (Get-Report -WithKey ([bool]($cfg -and $cfg.want_windows_key)))
   $neu = ''
   if ($res.created) { $neu = ' (neu angelegt)' }
   Write-Host "Erster Bericht gesendet – Gerät #$($res.device_id) in der IT-Dokumentation$neu."
@@ -292,7 +340,9 @@ if ($Print) {
   Uninstall-Agent
 } elseif ($Run) {
   if ($Url -and $Token) { $conf = @{ url = (Test-AgentUrl $Url); token = $Token.Trim(); insecure = [bool]$Insecure } } else { $conf = Read-Conf }
-  $res = Send-Report $conf (Get-Report)
+  $cfg = Get-AgentConfig $conf
+  Update-Self $conf $cfg
+  $res = Send-Report $conf (Get-Report -WithKey ([bool]($cfg -and $cfg.want_windows_key)))
   Write-Host "Bericht gesendet (Gerät #$($res.device_id))."
 } else {
   Get-Help $PSCommandPath -Detailed

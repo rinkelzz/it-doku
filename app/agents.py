@@ -186,6 +186,10 @@ def sanitize(raw: Dict[str, Any]) -> Dict[str, Any]:
                     "error": _s(upd.get("error"), 200)},
         "services": [],
     }
+    from .winlicense import sanitize as win_sanitize
+    win = win_sanitize(raw.get("windows_license")) if out["platform"] in ("windows", "") else None
+    if win:
+        out["windows_license"] = win  # enthält ggf. den Schlüssel – wird in store_report versiegelt und nicht im Bericht gespeichert
     for d in _list(raw.get("disks"), LIMITS["disks"]):
         d = _dict(d)
         total = _num(d.get("total_gb"), 0, 1e7)
@@ -423,6 +427,13 @@ def store_report(conn: sqlite3.Connection, agent: sqlite3.Row, rep: Dict[str, An
     else:
         d = conn.execute("SELECT * FROM devices WHERE id = ?", (device_id,)).fetchone()
         _sync_ips(conn, d, rep)
+    win = rep.pop("windows_license", None)
+    if win:
+        d = conn.execute("SELECT * FROM devices WHERE id = ?", (device_id,)).fetchone()
+        from . import winlicense
+        stored = winlicense.store(conn, agent["id"], d, win)
+        rep["windows_license"] = {k: v for k, v in win.items() if k != "key"}  # im Bericht nie der Schlüssel
+        rep["windows_license"]["key_stored"] = stored
     conn.execute(
         "UPDATE agents SET device_id = ?, platform = ?, last_report_at = ?, last_ip = ?, agent_version = ?, hostname = ?, "
         "os_name = ?, report = ?, report_requested = 0 WHERE id = ?",

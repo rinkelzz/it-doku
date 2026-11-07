@@ -78,6 +78,16 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
 - Unverschlüsseltes `http://` muss beim Einrichten ausdrücklich bestätigt werden – nur im VPN/LAN verwenden.
   Zertifikatsprüfung abschalten (`--insecure`) nur bei selbstsignierten Zertifikaten im eigenen Netz.
 - Die Skripte unter `/agent/…` enthalten keine Geheimnisse und sind ohne Anmeldung abrufbar.
+- **Windows-Produktschlüssel:** Der Tresor hat ein X25519-Schlüsselpaar; der private Schlüssel liegt nur mit dem
+  Tresor-Schlüssel verschlüsselt vor. Ein vom Agent gemeldeter Produktschlüssel wird beim Eingang sofort versiegelt
+  (einmaliges Schlüsselpaar → X25519 → HKDF-SHA256 → AES-256-CTR + HMAC, gebunden an die Lizenz) und nie im Klartext
+  gespeichert – weder in der Datenbank noch im Bericht noch in der Sicherung. Der Agent schickt ihn nur, wenn die App
+  ihn sofort versiegeln kann. Auf dem Weg vom Agenten zur App schützt ihn nur die Verbindung: über `http` im LAN ist er
+  mitlesbar – dafür https verwenden oder das Auslesen unter Verwaltung → Agenten abschalten.
+- **Selbstupdate der Agenten:** Ein Agent lädt neue Versionen nur von der IT-Dokumentation, bei der er eingerichtet
+  ist, prüft die SHA-256-Prüfsumme aus der (per Schlüssel angemeldeten) Nachfrage und ersetzt nur die eingerichtete
+  Datei. Die Skripte stammen aus dem Paket und lassen sich über die Oberfläche nicht ändern – wer sie austauschen
+  will, braucht Root auf der NAS. Abschaltbar unter Verwaltung → Agenten.
 - **Scan vor Ort:** Ein Agent scannt nur Netze, die ihm in der App ausdrücklich zugeordnet sind, und darf nur für diese
   Ergebnisse abliefern; Adressen außerhalb des Netzes werden verworfen. Wird ein Agent gelöscht, wird das Scannen seiner
   Netze ausgeschaltet – sonst würde die NAS ein fremdes Netz mit womöglich gleichen Adressen in ihrem eigenen LAN suchen.

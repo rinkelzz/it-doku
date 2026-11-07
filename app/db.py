@@ -383,6 +383,15 @@ def _m10_sicherheit(conn: sqlite3.Connection) -> None:
               AND (a.action = 'user_admin_dsm' OR (a.action = 'user_created_dsm' AND a.details LIKE '%Vollzugriff%')))""")
 
 
+def _m11_windows_lizenz(conn: sqlite3.Connection) -> None:
+    """Version 0.9: Windows-Lizenz vom Agent (versiegelter Schlüssel), Agent-Selbstupdate."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(licenses)")}
+    for col in ("agent_ref", "key_sealed", "key_fp"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE licenses ADD COLUMN {col} TEXT")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_licenses_agent_ref ON licenses(agent_ref) WHERE agent_ref IS NOT NULL")
+
+
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_stammdaten,
@@ -394,6 +403,7 @@ MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     8: _m8_fernscan,
     9: _m9_bericht_anfordern,
     10: _m10_sicherheit,
+    11: _m11_windows_lizenz,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
@@ -448,6 +458,10 @@ DEFAULT_SETTINGS = {
     "http_access": "0",
     # Anmeldung im DSM-Fenster (Single Sign-on über app.cgi)
     "dsm_sso": "1",
+    # Agenten holen sich neuere Versionen selbst (nur von dieser IT-Dokumentation, mit Prüfsumme)
+    "agent_autoupdate": "1",
+    # Windows-Agent liest den Produktschlüssel aus (wird versiegelt an den Tresor gespeichert)
+    "agent_winkey": "1",
 }
 
 

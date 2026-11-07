@@ -661,7 +661,7 @@ async function showLicense(id) {
   <div class="tgrid" style="margin-top:12px">
     <section class="card">
       <div class="dhead"><span class="ti">${LIC_ICON[l.kind] || "🔑"}</span><div><h2>${esc(l.name)}</h2>
-        <div class="row"><span class="tag">${esc(l.kind_label)}</span>${l.expires_on ? dueTag(l.expires_on, l.days, true) : '<span class="tag">unbefristet</span>'}</div></div>
+        <div class="row"><span class="tag">${esc(l.kind_label)}</span>${l.expires_on ? dueTag(l.expires_on, l.days, true) : '<span class="tag">unbefristet</span>'}${l.from_agent ? '<span class="tag" title="Wird vom Agent auf dem Gerät gepflegt">🛰️ vom Agent</span>' : ""}</div></div>
         ${adm ? '<div class="row"><button data-edit>Bearbeiten</button></div>' : ""}</div>
       <dl class="kv" style="grid-template-columns:150px 1fr">
         <dt>Hersteller</dt><dd>${esc(l.vendor || "–")}</dd><dt>Laufzeit</dt><dd>${esc(l.term || "–")}</dd>

@@ -32,7 +32,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-VERSION = "1.2"
+VERSION = "1.3"
 IS_MAC = sys.platform == "darwin"
 IS_SYNO = os.path.exists("/etc.defaults/VERSION") and os.path.isdir("/usr/syno")
 SYNO_DIR = "/usr/local/itdoku-agent"
@@ -724,6 +724,45 @@ def send_tracked(conf, rep, quiet):
     return res
 
 
+def _ver(v):
+    try:
+        return tuple(int(x) for x in str(v).split("."))
+    except ValueError:
+        return (0,)
+
+
+def self_update(conf, info, quiet):
+    """Neuere Version von der eigenen IT-Dokumentation holen (Prüfsumme aus der Nachfrage), nur die installierte Datei."""
+    import hashlib
+    if not info or _ver(info.get("version")) <= _ver(VERSION):
+        return False
+    me = os.path.realpath(os.path.abspath(__file__))
+    if me != os.path.realpath(BIN) or os.geteuid() != 0:
+        return False  # nur der eingerichtete Agent aktualisiert sich (nicht ein Aufruf aus /tmp)
+    req = urllib.request.Request(conf["url"] + info["path"], headers={"User-Agent": "itdoku-agent/" + VERSION})
+    ctx = ssl.create_default_context()
+    if conf.get("insecure"):
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    try:
+        with urllib.request.urlopen(req, timeout=60, context=ctx) as r:
+            data = r.read(2 * 1024 * 1024)
+    except (urllib.error.URLError, OSError) as e:
+        if not quiet:
+            print("Update nicht geladen: {}".format(e))
+        return False
+    if hashlib.sha256(data).hexdigest() != info.get("sha256") or b"itdoku-agent" not in data:
+        print("Update verworfen: Prüfsumme passt nicht.", file=sys.stderr)
+        return False
+    tmp = BIN + ".new"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.chmod(tmp, 0o755)
+    os.replace(tmp, BIN)
+    print("Agent aktualisiert: {} → {}".format(VERSION, info.get("version")))
+    return True
+
+
 def auto(conf, quiet, force_report=False):
     """Stündlicher Lauf: nachfragen, was fällig ist, und nur das erledigen. Ein Bericht geht raus, wenn er fällig
     oder angefordert ist (einmal am Tag / Knopf in der App) oder wenn sich am Rechner etwas geändert hat."""
@@ -731,6 +770,9 @@ def auto(conf, quiet, force_report=False):
     if cfg is None:  # ältere IT-Dokumentation ohne Nachfrage: einfach berichten
         send_tracked(conf, collect(), quiet)
         return
+    if self_update(conf, (cfg.get("update") or {}).get("itdoku-agent.py"), quiet):
+        # mit der neuen Version weitermachen
+        os.execv(sys.executable, [sys.executable, BIN] + sys.argv[1:])
     rep = collect()
     changed = fingerprint(rep) != read(STATE)
     if cfg.get("report_due") or force_report or changed:

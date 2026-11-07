@@ -22,6 +22,8 @@ def _sid(request: Request) -> Optional[str]:
 
 def _open(request, conn, user, key) -> None:
     vault.open_session(_sid(request), user["id"], key, vault.timeout_s(conn))
+    from .. import seal
+    seal.ensure_keys(conn, key)  # Schlüsselpaar für Daten, die Agenten liefern (z. B. Windows-Produktschlüssel)
 
 
 def _limit(name: str) -> None:
@@ -223,7 +225,7 @@ def members(admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db
     out["counts"] = {
         "credentials": conn.execute("SELECT COUNT(*) FROM credentials").fetchone()[0],
         "totp": conn.execute("SELECT COUNT(*) FROM credentials WHERE totp_enc IS NOT NULL").fetchone()[0],
-        "license_keys": conn.execute("SELECT COUNT(*) FROM licenses WHERE key_enc IS NOT NULL").fetchone()[0],
+        "license_keys": conn.execute("SELECT COUNT(*) FROM licenses WHERE key_enc IS NOT NULL OR key_sealed IS NOT NULL").fetchone()[0],
     }
     return out
 

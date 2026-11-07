@@ -49,7 +49,7 @@ jobs:
       - name: Windows – Bericht senden (Windows PowerShell 5.1)
         if: runner.os == 'Windows'
         shell: powershell
-        run: python tests/agent_e2e.py powershell.exe -NoProfile -ExecutionPolicy Bypass -File app/agent/itdoku-agent.ps1 -Run -Url "{url}" -Token "{token}" -AllowHttp -SkipUpdateSearch
+        run: python tests/agent_e2e.py --with-vault powershell.exe -NoProfile -ExecutionPolicy Bypass -File app/agent/itdoku-agent.ps1 -Run -Url "{url}" -Token "{token}" -AllowHttp -SkipUpdateSearch
       - name: Windows – Einrichten als geplante Aufgabe
         if: runner.os == 'Windows'
         run: python tests/agent_e2e.py powershell.exe -NoProfile -ExecutionPolicy Bypass -File app/agent/itdoku-agent.ps1 -Install -Url "{url}" -Token "{token}" -AllowHttp -SkipUpdateSearch

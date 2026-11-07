@@ -1,2 +1,2 @@
 """IT-Dokumentation – Geräte, Lizenzen, Netzwerk, Ansprechpartner und Zugangsdaten (verschlüsselt) für die Synology NAS."""
-__version__ = "0.8.4"
+__version__ = "0.9.0"

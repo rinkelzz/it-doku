@@ -2,6 +2,22 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.9.0] – 2026-11-07
+
+### Neu
+- **Windows-Lizenz vom Agent:** Der Windows-Agent meldet Edition, Kanal (OEM/Retail/Volumen), Aktivierungsstatus,
+  Teilschlüssel und den **Produktschlüssel** – aus der Firmware (OEM, bei Fertig-PCs/Notebooks) oder aus der
+  Installation (z. B. gekaufte Einzellizenz). Er landet als Lizenz „Windows 11 Pro (Gerät)“ unter Lizenzen, mit dem
+  Gerät verknüpft. Allgemeine Schlüssel (digitale Lizenzen, KMS) werden erkannt und nicht gespeichert.
+- **Schlüssel nie im Klartext:** Der Tresor hat jetzt zusätzlich ein Schlüsselpaar (X25519). Beim Eingang wird der
+  Produktschlüssel sofort an den öffentlichen Schlüssel versiegelt; lesen kann ihn nur, wer den Tresor entsperrt
+  hat. Der Agent schickt den Schlüssel erst, wenn der Tresor einmal entsperrt wurde. Abschaltbar unter
+  Verwaltung → Agenten.
+- **Agenten aktualisieren sich selbst (ab Agent 1.3):** Beim Nachfragen holt sich ein Agent eine neuere Version –
+  nur von der eigenen IT-Dokumentation, nur mit passender SHA-256-Prüfsumme, nur die eingerichtete Datei. Die
+  Agentenliste zeigt, wo eine neue Version ansteht. Abschaltbar unter Verwaltung → Agenten.
+- Windows-Agent 1.3 fragt bei jedem Lauf nach (Selbstupdate, Schlüssel-Freigabe).
+
 ## [0.8.4] – 2026-11-07
 
 ### Sicherheit (aus einem externen Review)

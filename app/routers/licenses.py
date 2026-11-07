@@ -37,8 +37,10 @@ def _out(conn, r) -> dict:
     out["assigned"] = conn.execute("SELECT COUNT(*) FROM license_devices WHERE license_id = ?", (r["id"],)).fetchone()[0]
     out["used"] = r["seats_used"] if r["seats_used"] is not None else out["assigned"]
     out["days"] = days_until(r["expires_on"])
-    out["has_key"] = bool(r["key_enc"]) if "key_enc" in r.keys() else False
-    out.pop("key_enc", None)
+    out["has_key"] = bool(r["key_enc"] if "key_enc" in r.keys() else False) or bool(r["key_sealed"] if "key_sealed" in r.keys() else False)
+    out["from_agent"] = bool(r["agent_ref"]) if "agent_ref" in r.keys() else False
+    for k in ("key_enc", "key_sealed", "key_fp", "agent_ref"):
+        out.pop(k, None)
     return out
 
 

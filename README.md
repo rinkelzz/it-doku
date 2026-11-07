@@ -11,7 +11,7 @@ Lizenzen, Netzwerkplan und Zugangsdaten (verschlüsselt im Tresor). Sie läuft a
 eigenem Fenster in DSM. Die Daten bleiben beim Kunden; der IT-Dienstleister und eine Vertrauensperson beim Kunden
 haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 
-> **Stand 0.8:** Geräte, Netzwerk mit Netzwerk-Scan, Agent für Server und PCs (Windows, Linux, macOS), Lizenzen,
+> **Stand 0.9:** Geräte, Netzwerk mit Netzwerk-Scan, Agent für Server und PCs (Windows, Linux, macOS), Lizenzen,
 > Ansprechpartner, Zugangsdaten im verschlüsselten Tresor, Fristen-Mail, Notfall-Handbuch als PDF und CSV-Import –
 > siehe [Fahrplan](#fahrplan).
 
@@ -138,6 +138,13 @@ Für Rechner, die der Netzwerk-Scan nicht sieht (Cloud-Server, Filiale, Homeoffi
 interessiert: Ein kleiner Agent schickt **täglich und nach jedem Start** einen Bericht per HTTPS an die
 IT-Dokumentation. Am Server muss **kein Port offen** sein – der Agent meldet sich, nicht umgekehrt.
 
+**Windows-Lizenz:** Der Windows-Agent meldet Edition, Kanal, Aktivierung und den Produktschlüssel (aus der Firmware
+oder der Installation) – als Lizenz am Gerät, der Schlüssel verschlüsselt im Tresor. So ist er nach einem
+Festplattentausch griffbereit. Bei digitalen Lizenzen (z. B. Upgrade von Windows 10) gibt es keinen eigenen
+Schlüssel; dort aktiviert sich eine Neuinstallation über die Hardware bzw. das Microsoft-Konto.
+
+**Selbstupdate:** Ab Agent 1.3 holen sich die Agenten neue Versionen selbst von der IT-Dokumentation (mit Prüfsumme).
+
 **Synology als Agent:** Auch eine entfernte Synology kann Agent sein (per SSH einrichten, Zeitplan im DSM-Aufgabenplaner –
 den genauen Eintrag zeigt der Einrichtungsbefehl). Sie meldet Modell, Seriennummer, DSM-Version, Volumes und Pakete.
 
@@ -199,6 +206,7 @@ wöchentlichen **Fristen-Mail**.
 | **0.4** ✔ | Komfort: Fristen-Mail (wöchentlich + Stichtage), PDF „Notfall-Handbuch“ (Kontakte, Internet, Netzwerk), CSV-Import für Geräte mit Spaltenzuordnung |
 | **0.5** ✔ | Netzwerk-Scan: neue Geräte übernehmen, MAC/Hostname ergänzen, Abweichungen, „zuletzt online“, nachts automatisch |
 | **0.6** ✔ | Agent für Server und PCs (Windows, Linux, macOS): Hardware, System, Datenträger, Netzwerk, Software, Updates und Dienste per HTTPS, Gerät wird gefunden oder angelegt, Hinweis bei stillen Agenten |
+| **0.9** ✔ | Windows-Produktschlüssel vom Agent (versiegelt im Tresor), Selbstupdate der Agenten |
 | **0.8** ✔ | Agent scannt das Netz vor Ort (entfernte Standorte ohne VPN), Synology DSM als Agent |
 | **0.7** ✔ | Web-Oberflächen pro Gerät (mehrere, mit Bezeichnung), anklickbarer Hostname, automatische Links aus dem Netzwerk-Scan |
 | später | Wiki-Seiten für Anleitungen, Verknüpfung mit dem Helpdesk aus [Zeitmanagement](https://github.com/rinkelzz/zeitmanagement) |
@@ -336,6 +344,8 @@ customer's own NAS, in its own DSM window with single sign-on. The user interfac
   found by the network scan.
 - 0.8: agents scan their local network on behalf of the NAS (remote sites without VPN, incl. MAC/vendor);
   Synology DSM can run the agent (scheduled via DSM Task Scheduler).
+- 0.9: Windows product key from the agent (sealed to the vault with X25519, never stored in plain text); agents
+  update themselves from the IT documentation (SHA-256 checked).
 - Planned: wiki pages, link to the Zeitmanagement helpdesk.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/it-doku/releases) →
