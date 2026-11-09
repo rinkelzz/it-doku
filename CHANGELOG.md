@@ -2,6 +2,19 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.9.1] – 2026-11-09
+
+### Sicherheit (aus einem externen Review)
+- **Schlüssel für das DSM-Fenster nur noch für den Paketbenutzer lesbar (0600):** `app.cgi` läuft als Paketbenutzer
+  (auf einer NAS mit DSM 7 geprüft). Andere lokale Benutzer der NAS können sich damit nicht mehr gegenüber 127.0.0.1
+  als beliebiger DSM-Benutzer ausgeben.
+- **CSRF-Schutz:** Der Header `X-Forwarded-Host` zählt nicht mehr als eigene Adresse – er ließe sich je nach Proxy vom
+  Browser aus setzen. Es zählen nur der `Host`-Header und die eingetragene öffentliche Adresse. Wer die App hinter einem
+  Reverse Proxy betreibt, der `Host` nicht durchreicht, trägt die öffentliche Adresse in der Verwaltung ein.
+- **Sitzungen laufen nach 7 statt 30 Tagen ab** (änderbar über `ITD_SESSION_DAYS`).
+- **Sicherungen enthalten keine Browser-Sitzungen mehr.** Nach dem Wiederherstellen bleiben angemeldete Benutzer
+  trotzdem angemeldet.
+
 ## [0.9.0] – 2026-11-07
 
 ### Neu

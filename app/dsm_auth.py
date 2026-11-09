@@ -56,10 +56,9 @@ def proxy_secret() -> str:
 LOOPBACK = frozenset({"127.0.0.1", "::1", "::ffff:127.0.0.1"})
 
 
-# Wie die Schlüsseldatei geschützt ist: "group" (nur Paket + Gruppe des DSM-Webservers), "world" (für alle lesbar,
-# weil das Paket die Gruppe nicht setzen darf), "off" (Anmeldung im DSM-Fenster ausgeschaltet), "" (nicht auf DSM)
+# Wie die Schlüsseldatei geschützt ist: "owner" (nur Paketbenutzer, 0600), "world" (ließ sich nicht beschränken),
+# "off" (Anmeldung im DSM-Fenster aus) oder "" (kein DSM-Paket, z. B. Entwicklung).
 secret_mode = ""
-WEB_GROUPS = ("http",)
 
 
 def rotate_secret() -> None:
@@ -78,25 +77,15 @@ def rotate_secret() -> None:
 
 
 def _restrict(path: Path) -> str:
-    """Datei nur für das Paket und die Gruppe des DSM-Webservers lesbar machen (app.cgi läuft als „http“).
-    Geht das nicht (Paketbenutzer ist nicht in der Gruppe), bleibt sie für alle lesbar – das meldet die App."""
+    """Datei nur für den Paketbenutzer lesbar machen (0600). app.cgi läuft als Paketbenutzer – auf einer NAS mit
+    DSM 7 geprüft: Das DSM-Fenster funktioniert mit 0600 weiter. Andere lokale Benutzer und Programme kommen nicht
+    mehr an den Schlüssel (mit ihm könnte man sich gegenüber 127.0.0.1 als beliebiger DSM-Benutzer ausgeben)."""
     try:
-        import grp
-        for name in WEB_GROUPS:
-            try:
-                gid = grp.getgrnam(name).gr_gid
-            except KeyError:
-                continue
-            try:
-                os.chown(path, -1, gid)
-                os.chmod(path, 0o640)
-                return "group"
-            except OSError:
-                break
-    except ImportError:
-        pass
-    os.chmod(path, 0o644)
-    return "world"
+        os.chmod(path, 0o600)
+        return "owner"
+    except OSError:
+        os.chmod(path, 0o644)
+        return "world"
 
 
 def publish_proxy_files(enabled: bool = True) -> bool:
@@ -121,10 +110,10 @@ def publish_proxy_files(enabled: bool = True) -> bool:
             tmp.write_text(content, encoding="utf-8")
             modes.append(_restrict(tmp) if name == ".proxy_secret" else (os.chmod(tmp, 0o644) or "port"))
             tmp.replace(p)
-        secret_mode = "off" if not enabled else ("group" if "group" in modes else "world")
+        secret_mode = "off" if not enabled else ("owner" if "owner" in modes else "world")
         if secret_mode == "world":
-            print("[itdoku] Hinweis: Der Schlüssel für das DSM-Fenster ist für alle lokalen Benutzer der NAS lesbar "
-                  "(Paket darf die Gruppe „http“ nicht setzen). Wer das nicht möchte: Verwaltung → System → DSM-Fenster.")
+            print("[itdoku] Hinweis: Der Schlüssel für das DSM-Fenster ließ sich nicht auf den Paketbenutzer beschränken "
+                  "und ist für alle lokalen Benutzer der NAS lesbar. Wer das nicht möchte: Verwaltung → System → DSM-Fenster.")
         return True
     except OSError as e:
         print(f"[itdoku] Proxy-Dateien nicht schreibbar: {e}")

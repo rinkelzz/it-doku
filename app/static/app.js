@@ -237,7 +237,7 @@ function fillSettings() {
   const warn = $("setSsoWarn");
   warn.classList.toggle("hidden", !(s.dsm_sso && s.dsm_secret_mode === "world"));
   warn.innerHTML = '<span class="tag warn">Hinweis</span> Der Schlüssel für das DSM-Fenster liegt für alle lokalen Benutzer der NAS lesbar im Paketordner ' +
-    '(das Paket darf ihn nicht auf die Gruppe des DSM-Webservers beschränken). Er wird bei jedem Start neu erzeugt. Wer auf der NAS fremden ' +
+    '(er ließ sich auf dieser NAS nicht auf den Paketbenutzer beschränken). Er wird bei jedem Start neu erzeugt. Wer auf der NAS fremden ' +
     'Programmen oder Benutzern mit Konsolenzugang nicht traut, schaltet die Anmeldung im DSM-Fenster aus – dann meldet man sich auch dort mit Passwort an.';
   $("smtpHost").value = s.smtp_host || ""; $("smtpPort").value = s.smtp_port || 587; $("smtpSec").value = s.smtp_security || "starttls";
   $("smtpUser").value = s.smtp_user || ""; $("smtpPw").value = "";

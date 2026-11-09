@@ -58,11 +58,11 @@ def test_csrf_own_page_allowed(emp):
 def test_csrf_public_url_and_forwarded_host(emp, monkeypatch):
     from app.config import settings
     c = emp["c"]
-    # hinter dem Reverse Proxy kommt oft Host: localhost:8780 an – dann zählt X-Forwarded-Host bzw. die öffentliche Adresse
+    # hinter dem Reverse Proxy kommt oft Host: localhost:8780 an – dann zählt nur die eingetragene öffentliche Adresse
     h = {"Host": "localhost:8780", "Origin": "https://zeit.meine.de"}
     body = {"display_name": "=1+2"}
     assert c.patch("/api/v1/me", json=body, headers=h).status_code == 403
-    assert c.patch("/api/v1/me", json=body, headers={**h, "X-Forwarded-Host": "zeit.meine.de"}).status_code == 200
+    assert c.patch("/api/v1/me", json=body, headers={**h, "X-Forwarded-Host": "zeit.meine.de"}).status_code == 403  # Header ist fälschbar
     monkeypatch.setattr(settings, "public_url", "https://zeit.meine.de")
     assert c.patch("/api/v1/me", json=body, headers=h).status_code == 200
 

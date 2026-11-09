@@ -41,7 +41,7 @@ class Settings:
         self.port = _port(os.environ.get("ITD_PORT", str(DEFAULT_PORT)))
         # Session-Cookie nur über HTTPS senden (hinter Reverse Proxy mit TLS: an)
         self.cookie_secure = _bool("ITD_COOKIE_SECURE", False)
-        self.session_days = int(os.environ.get("ITD_SESSION_DAYS", "30"))
+        self.session_days = int(os.environ.get("ITD_SESSION_DAYS", "7"))
         # Ordner der DSM-Oberfläche (ui/), dort liegt app.json fürs DSM-Fenster
         self.ui_dir = os.environ.get("ITD_UI_DIR", "")
         # Hintergrund-Aufgaben (Sicherung, Update-Prüfung, später Fristen-Mails); in Tests aus

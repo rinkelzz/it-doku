@@ -1,5 +1,4 @@
 """0.8.4: Befunde aus dem Sicherheits-Review (DSM-SSO, http, DSM-Adminrechte, DSM-Adresse, Login-Sperre)."""
-import grp
 import os
 import stat
 
@@ -120,22 +119,19 @@ def test_secret_file_permissions_and_sso_switch(admin, tmp_path, monkeypatch):
     ui = tmp_path / "ui"
     ui.mkdir()
     monkeypatch.setattr(settings, "ui_dir", str(ui))
-    # Gruppe, in der der Testbenutzer ist, steht für „http“
-    monkeypatch.setattr(dsm_auth, "WEB_GROUPS", (grp.getgrgid(os.getgid()).gr_name,))
     old = dsm_auth.proxy_secret()
     dsm_auth.rotate_secret()
     assert dsm_auth.proxy_secret() != old
-    assert dsm_auth.publish_proxy_files(True) and dsm_auth.secret_mode == "group"
+    # nur der Paketbenutzer darf den Schlüssel lesen
+    assert dsm_auth.publish_proxy_files(True) and dsm_auth.secret_mode == "owner"
     f = tmp_path / ".proxy_secret"
-    assert stat.S_IMODE(f.stat().st_mode) == 0o640 and f.read_text() == dsm_auth.proxy_secret()
-    monkeypatch.setattr(dsm_auth, "WEB_GROUPS", ("gibt-es-nicht-xyz",))
-    dsm_auth.publish_proxy_files(True)
-    assert dsm_auth.secret_mode == "world" and stat.S_IMODE(f.stat().st_mode) == 0o644
-    assert admin.get("/api/v1/settings").json()["dsm_secret_mode"] == "world"
+    assert stat.S_IMODE(f.stat().st_mode) == 0o600 and f.read_text() == dsm_auth.proxy_secret()
+    assert stat.S_IMODE((tmp_path / ".port").stat().st_mode) == 0o644
+    assert admin.get("/api/v1/settings").json()["dsm_secret_mode"] == "owner"
     # SSO aus: Datei weg, Schlüssel zählt nicht mehr
     assert admin.patch("/api/v1/settings", json={"dsm_sso": False}).status_code == 200
     assert not f.exists()
     with TestClient(app, client=LOCAL) as c:
         assert c.get("/api/v1/me", headers=sso("admin")).status_code == 401
     admin.patch("/api/v1/settings", json={"dsm_sso": True})
-    assert f.exists() and dsm_auth.secret_mode in ("group", "world")
+    assert f.exists() and dsm_auth.secret_mode == "owner"
