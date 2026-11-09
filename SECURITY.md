@@ -34,11 +34,11 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
   127.0.0.1 ausgestelltes Zertifikat); die Verbindung verlässt die NAS nicht.
 - **Single Sign-on im DSM-Fenster:** Der Schlüssel (`.proxy_secret` im Paketordner) wird nur von
   Verbindungen über 127.0.0.1 ohne `X-Forwarded-For` angenommen, also nur von `app.cgi` auf der NAS selbst.
-  Er wird bei jedem Start neu erzeugt. `app.cgi` läuft als Benutzer des DSM-Webservers (`http`), die Datei muss für
-  ihn lesbar sein: Die App versucht, sie auf die Gruppe `http` mit Modus 0640 zu beschränken. Darf das Paket die Gruppe
-  nicht setzen, bleibt sie für alle lokalen Benutzer der NAS lesbar – die Verwaltung zeigt dann einen Hinweis.
-  **Restrisiko:** Wer auf der NAS Programme als anderer Benutzer ausführen kann (Konsolenzugang, fremdes Paket), kann
-  den Schlüssel lesen und sich als beliebiger DSM-Benutzer ausgeben. Wer das ausschließen will, schaltet unter
+  Er wird bei jedem Start neu erzeugt. `app.cgi` läuft als Paketbenutzer (auf einer NAS mit DSM 7 geprüft), die
+  Datei ist deshalb nur für ihn lesbar (Modus 0600). Lässt sich das nicht setzen, bleibt sie für alle lokalen Benutzer
+  der NAS lesbar – die Verwaltung zeigt dann einen Hinweis.
+  **Restrisiko:** Wer auf der NAS Programme als Paketbenutzer oder root ausführen kann, kann den Schlüssel
+  lesen und sich als beliebiger DSM-Benutzer ausgeben. Wer das ausschließen will, schaltet unter
   Verwaltung → System die **Anmeldung im DSM-Fenster** aus; der Schlüssel wird dann gelöscht und nicht mehr angenommen.
 - **Echte Absenderadresse** (`X-Forwarded-For`) wird nur übernommen, wenn die Anfrage vom Reverse Proxy
   auf derselben NAS (127.0.0.1) kommt oder von einem Proxy, der unter **Verwaltung → System → Eigener Reverse Proxy**
