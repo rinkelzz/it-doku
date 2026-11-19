@@ -89,6 +89,12 @@ def merge(conn: sqlite3.Connection, user, keep_id: int, other_id: int) -> Dict:
                 conn.execute("DELETE FROM device_urls WHERE id = ?", (u["id"],))
             else:
                 conn.execute("UPDATE device_urls SET device_id = ?, sort = sort + 100 WHERE id = ?", (keep_id, u["id"]))
+        for rr in conn.execute("SELECT * FROM device_remote WHERE device_id = ?", (other_id,)).fetchall():
+            if conn.execute("SELECT 1 FROM device_remote WHERE device_id = ? AND tool = ? AND remote_id = ?",
+                            (keep_id, rr["tool"], rr["remote_id"])).fetchone():
+                conn.execute("DELETE FROM device_remote WHERE id = ?", (rr["id"],))
+            else:
+                conn.execute("UPDATE device_remote SET device_id = ? WHERE id = ?", (keep_id, rr["id"]))
         moved["Agent"] = conn.execute("UPDATE agents SET device_id = ? WHERE device_id = ?", (keep_id, other_id)).rowcount
         conn.execute("UPDATE devices SET updated_at = ? WHERE id = ?", (now_utc_str(), keep_id))
         conn.execute("DELETE FROM devices WHERE id = ?", (other_id,))

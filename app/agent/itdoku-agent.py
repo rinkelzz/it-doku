@@ -32,7 +32,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-VERSION = "1.3"
+VERSION = "1.4"
 IS_MAC = sys.platform == "darwin"
 IS_SYNO = os.path.exists("/etc.defaults/VERSION") and os.path.isdir("/usr/syno")
 SYNO_DIR = "/usr/local/itdoku-agent"
@@ -502,6 +502,44 @@ def mac_boot():
     return iso(int(m.group(1))) if m else ""
 
 
+# --- Fernwartung (nur Kennungen, nie Kennwörter) ------------------------------
+
+def _first(paths, pattern):
+    import glob
+    for pat in paths:
+        for p in sorted(glob.glob(pat)):
+            m = re.search(pattern, read(p), re.M)
+            if m:
+                return m.group(1), p
+    return "", ""
+
+
+def remote_tools():
+    out = []
+    tv = ""
+    if IS_MAC:
+        tv = run(["defaults", "read", "/Library/Preferences/com.teamviewer.teamviewer.preferences", "ClientID"], 10).strip()
+    else:
+        tv, _ = _first(["/etc/teamviewer/global.conf", "/opt/teamviewer/config/global.conf"], r"ClientID\s*=\s*(\d+)")
+        if not tv and which("teamviewer"):
+            m = re.search(r"TeamViewer ID:\s*(\d+)", run(["teamviewer", "info"], 20))
+            tv = m.group(1) if m else ""
+    if tv.isdigit():
+        out.append({"tool": "teamviewer", "id": tv})
+    ad, path = _first(["/etc/anydesk/system.conf", "/Library/Application Support/AnyDesk/system.conf", "/root/.anydesk/system.conf",
+                       "/home/*/.anydesk/system.conf", "/Users/*/.anydesk/system.conf"], r"^ad\.anynet\.id=(\d+)")
+    if ad:
+        alias = re.search(r"^ad\.anynet\.alias=(.+)$", read(path), re.M)
+        out.append({"tool": "anydesk", "id": ad, "note": "Alias: " + alias.group(1).strip() if alias else ""})
+    rd, path = _first(["/root/.config/rustdesk/RustDesk.toml", "/home/*/.config/rustdesk/RustDesk.toml",
+                       "/var/root/Library/Preferences/com.carriez.RustDesk/RustDesk.toml",
+                       "/Users/*/Library/Preferences/com.carriez.RustDesk/RustDesk.toml"], r"""^\s*id\s*=\s*['"]([^'"]+)['"]""")
+    if rd:
+        srv = re.search(r"""custom-rendezvous-server\s*=\s*['"]([^'"]*)['"]""", read(os.path.join(os.path.dirname(path), "RustDesk2.toml")))
+        out.append({"tool": "rustdesk", "id": rd, "note": "Server: " + srv.group(1) if srv and srv.group(1) else ""})
+    return out
+
+
 # --- Bericht ----------------------------------------------------------------
 
 def collect():
@@ -519,7 +557,8 @@ def collect():
         rep = {"platform": "linux", "os": part(linux_os, {}), "hardware": part(linux_hw, {}), "disks": part(linux_disks, []),
                "network": part(linux_net, {}), "software": part(linux_software, []), "updates": part(linux_updates, {}),
                "services": part(linux_services, []), "boot_time": part(linux_boot, "")}
-    rep.update({"agent_version": VERSION, "hostname": host.split(".")[0], "domain": ".".join(socket.getfqdn().split(".")[1:])})
+    rep.update({"agent_version": VERSION, "hostname": host.split(".")[0], "domain": ".".join(socket.getfqdn().split(".")[1:]),
+                "remote_tools": part(remote_tools, [])})
     return rep
 
 
@@ -707,7 +746,8 @@ def fingerprint(rep):
            "sw": sorted((p.get("name", ""), p.get("version", "")) for p in rep.get("software", [])),
            "upd": [upd.get("pending"), upd.get("reboot_required"), sorted(upd.get("items") or [])],
            "svc": sorted((x.get("name", ""), x.get("state", "")) for x in rep.get("services", [])),
-           "net": sorted((i.get("name", ""), tuple(i.get("ipv4", []))) for i in rep.get("network", {}).get("interfaces", []))}
+           "net": sorted((i.get("name", ""), tuple(i.get("ipv4", []))) for i in rep.get("network", {}).get("interfaces", [])),
+           "remote": sorted((x.get("tool", ""), x.get("id", "")) for x in rep.get("remote_tools", []))}
     return hashlib.sha256(json.dumps(key, sort_keys=True, default=str).encode()).hexdigest()
 
 

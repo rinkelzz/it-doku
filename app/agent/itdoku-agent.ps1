@@ -34,7 +34,7 @@ if ($PSVersionTable.PSVersion.Major -lt 6) {
   $machine = [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine')
   if ($machine) { $env:PSModulePath = "$env:ProgramFiles\WindowsPowerShell\Modules;$machine" }
 }
-$AgentVersion = '1.3'
+$AgentVersion = '1.4'
 $Dir = Join-Path $env:ProgramData 'ITDoku'
 $ConfFile = Join-Path $Dir 'config.json'
 $ScriptFile = Join-Path $Dir 'itdoku-agent.ps1'
@@ -160,6 +160,45 @@ function Get-Services {
   })
 }
 
+function Get-RemoteTools {
+  # Fernwartung: nur die Kennungen (ID), nie Kennwörter
+  $out = @()
+  foreach ($k in 'HKLM:\SOFTWARE\TeamViewer', 'HKLM:\SOFTWARE\WOW6432Node\TeamViewer') {
+    $p = Get-ItemProperty -Path $k -ErrorAction SilentlyContinue
+    if ($p -and $p.ClientID) { $out += @{ tool = 'teamviewer'; id = "$($p.ClientID)"; version = "$($p.Version)" }; break }
+  }
+  $conf = @(Get-ChildItem -Path "$env:ProgramData\AnyDesk" -Filter 'system.conf' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 5)
+  foreach ($f in $conf) {
+    $txt = @(Get-Content -Path $f.FullName -ErrorAction SilentlyContinue)
+    $idLine = $txt | Where-Object { $_ -match '^ad\.anynet\.id=\d+' } | Select-Object -First 1
+    if ($idLine) {
+      $aliasLine = $txt | Where-Object { $_ -match '^ad\.anynet\.alias=' } | Select-Object -First 1
+      $note = ''
+      if ($aliasLine) { $note = 'Alias: ' + ($aliasLine -replace '^ad\.anynet\.alias=', '').Trim() }
+      $out += @{ tool = 'anydesk'; id = ($idLine -replace '^ad\.anynet\.id=', '').Trim(); note = $note }
+      break
+    }
+  }
+  $cands = @("$env:windir\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\RustDesk.toml",
+             "$env:windir\System32\config\systemprofile\AppData\Roaming\RustDesk\config\RustDesk.toml")
+  $cands += @(Get-ChildItem -Path 'C:\Users\*\AppData\Roaming\RustDesk\config\RustDesk.toml' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+  foreach ($c in $cands) {
+    if (-not (Test-Path -LiteralPath $c)) { continue }
+    $m = Select-String -LiteralPath $c -Pattern "^\s*id\s*=\s*['`"]([^'`"]+)['`"]" | Select-Object -First 1
+    if ($m) {
+      $note = ''
+      $srv = Join-Path (Split-Path $c) 'RustDesk2.toml'
+      if (Test-Path -LiteralPath $srv) {
+        $s = Select-String -LiteralPath $srv -Pattern "custom-rendezvous-server\s*=\s*['`"]([^'`"]+)['`"]" | Select-Object -First 1
+        if ($s) { $note = 'Server: ' + $s.Matches[0].Groups[1].Value }
+      }
+      $out += @{ tool = 'rustdesk'; id = $m.Matches[0].Groups[1].Value; note = $note }
+      break
+    }
+  }
+  $out
+}
+
 function Get-PowerOn {
   # Windows-Schnellstart: „Herunterfahren“ ist eigentlich Ruhezustand, LastBootUpTime bleibt alt.
   # Das letzte Einschalten steht als Kernel-Boot-Ereignis 27 im System-Protokoll (BootType 1 = Schnellstart).
@@ -213,6 +252,7 @@ function Get-Report([bool]$WithKey = $false) {
     updates = (Part { Get-Updates } @{})
     services = @(Part { Get-Services } @())
     windows_license = (Part { Get-WindowsLicense $WithKey } $null)
+    remote_tools = @(Part { Get-RemoteTools } @())
   }
 }
 

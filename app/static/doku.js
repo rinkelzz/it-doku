@@ -263,7 +263,7 @@ async function loadDevices() {
   $("devTitle").innerHTML = `${esc(typeName || "Geräte")} <span class="muted small" style="font-weight:400">· ${rows.length}${doc.dev.status ? " " + STATUS[doc.dev.status] : ""}</span>`;
   const warr = (d) => d.warranty_until ? `<span class="tag ${d.warranty_days < 0 ? "" : d.warranty_days <= 90 ? "warn" : ""}">${monthYear(d.warranty_until)}</span>` : '<span class="muted">–</span>';
   $("devTable").innerHTML = `<thead><tr><th>Gerät</th><th>IP-Adresse</th><th>Raum</th><th>Benutzt von</th><th>Seriennummer</th><th>Garantie</th></tr></thead><tbody>` +
-    (rows.map(d => `<tr data-id="${d.id}"><td data-sort="${esc(d.name)}"><div class="nm"><span class="ti">${esc(d.type_icon)}</span><div><b class="${isPlaceholder(d.name) ? "unnamed" : ""}">${esc(d.name)}</b>${(d.urls || []).slice(0, 3).map(u => webLink(u.url, "↗", "weblnk", u.label || u.url)).join("")}
+    (rows.map(d => `<tr data-id="${d.id}"><td data-sort="${esc(d.name)}"><div class="nm"><span class="ti">${esc(d.type_icon)}</span><div><b class="${isPlaceholder(d.name) ? "unnamed" : ""}">${esc(d.name)}</b>${(d.remote || []).filter(r => r.url).slice(0, 2).map(r => remoteLink(r, esc(r.icon), "weblnk")).join("")}${(d.urls || []).slice(0, 3).map(u => webLink(u.url, "↗", "weblnk", u.label || u.url)).join("")}
       <small>${esc([[d.manufacturer, d.model].filter(Boolean).join(" "), d.os].filter(Boolean).join(" · "))}${d.status !== "active" ? ` · <i>${esc(d.status_label)}</i>` : ""}</small></div></div></td>
       <td class="mono">${esc(d.ips || "–")}</td><td>${esc(d.room || "–")}${multiSite() && !doc.site && d.site_name ? `<small class="muted" style="display:block">${esc(d.site_name)}</small>` : ""}</td><td>${esc(d.used_by || "–")}</td>
       <td class="mono">${esc(d.serial || "–")}</td><td data-sort="${esc(d.warranty_until || "")}">${warr(d)}</td></tr>`).join("") ||
@@ -335,7 +335,7 @@ async function showDevice(id) {
       <div class="dhead"><span class="ti">${esc(d.type_icon)}</span><div><h2>${esc(d.name)}</h2>
         <div class="row"><span class="tag ${d.status === "active" ? "okk" : ""}">${esc(d.status_label)}</span><span class="tag">${esc(d.type_name)}</span>
           ${d.site_name || d.room ? `<span class="tag">📍 ${esc([multiSite() ? d.site_name : "", d.room].filter(Boolean).join(" · "))}</span>` : ""}</div></div>
-        <div class="row">${d.urls.slice(0, 3).map(u => webLink(u.url, `↗ ${esc(u.label || urlHost(u.url))}`, "linkbtn")).join("")}${adm ? '<button data-merge title="Doppelten Eintrag in dieses Gerät übernehmen">⇄</button><button data-edit>Bearbeiten</button>' : ""}</div></div>
+        <div class="row">${d.remote.filter(r => r.url).slice(0, 2).map(r => remoteLink(r, `${esc(r.icon)} ${esc(r.tool_label)}`, "linkbtn")).join("")}${d.urls.slice(0, 3).map(u => webLink(u.url, `↗ ${esc(u.label || urlHost(u.url))}`, "linkbtn")).join("")}${adm ? '<button data-merge title="Doppelten Eintrag in dieses Gerät übernehmen">⇄</button><button data-edit>Bearbeiten</button>' : ""}</div></div>
       <div class="fgrid">
         ${kv([["Hersteller", esc(d.manufacturer)], ["Modell", esc(d.model)], ["Seriennummer", esc(d.serial), "mono"], ["Inventar-Nr.", esc(d.inventory_no), "mono"]])}
         ${kv([["Betriebssystem", esc(d.os)], ["Benutzt von", esc(d.used_by)],
@@ -354,6 +354,13 @@ async function showDevice(id) {
       ${adm && d.url_suggestions.length ? `<p class="small" style="margin:6px 0 0"><span class="muted">Gefunden:</span> ${d.url_suggestions.map((u, i) =>
         `<button class="mini" data-suggurl="${i}" title="Als Web-Adresse übernehmen">＋ ${esc(u)}</button>`).join(" ")}</p>` : ""}
       ${!adm && !d.urls.length ? '<p class="muted small" style="margin:0">–</p>' : ""}
+      <div class="sect">Fernwartung ${adm ? '<button class="mini" data-addrem>＋ Fernwartung</button>' : ""}</div>
+      ${d.remote.map(r => `<div class="weburl"><span><span>${esc(r.icon)} <b>${esc(r.tool_label)}</b>
+          <span class="mono remid">${esc(r.display)}</span>${r.source === "agent" ? ' <span class="tag" title="Vom Agent gemeldet">🛰️</span>' : ""}</span>
+          ${r.note || r.version ? `<small class="muted">${esc([r.note, r.version ? "Version " + r.version : ""].filter(Boolean).join(" · "))}</small>` : ""}</span>
+        <span class="row" style="gap:4px">${remoteLink(r, "Verbinden ↗", "mini linkmini")}<button class="mini" data-copyrem="${r.id}" title="Kennung kopieren">⧉</button>
+          ${adm ? `<button class="mini" data-editrem="${r.id}" title="Bearbeiten">✎</button><button class="mini" data-delrem="${r.id}" title="Entfernen">✕</button>` : ""}</span></div>`).join("")
+        || '<p class="muted small" style="margin:0">Keine Fernwartung erfasst – TeamViewer, AnyDesk und RustDesk meldet der Agent selbst.</p>'}
       <div class="sect">Notizen</div>
       ${d.notes ? `<div class="note">${esc(d.notes)}</div>` : '<p class="muted small" style="margin:0">–</p>'}
       <div class="sect">Anhänge ${uploadButton("devFile")}</div>
@@ -378,6 +385,7 @@ async function showDevice(id) {
     </aside>
   </div>`;
   const reload = () => showDevice(id);
+  window.lastDevice = d;
   box.querySelector("[data-back]").onclick = () => go("devices");
   if (window.agentPanel) agentPanel(d, reload);
   if (adm) {
@@ -423,6 +431,25 @@ async function showDevice(id) {
     } });
   if (adm) {
     box.querySelector("[data-addurl]").onclick = () => urlForm(null);
+    const remForm = (r) => openForm({ title: r ? "Fernwartung bearbeiten" : "Neue Fernwartung", narrow: true, fields: [
+        { k: "tool", label: "Programm", type: "select", options: [["teamviewer", "TeamViewer"], ["anydesk", "AnyDesk"], ["rustdesk", "RustDesk"], ["other", "Anderes …"]] },
+        { k: "label", label: "Name des Programms (bei „Anderes“)", ph: "z. B. Splashtop, RDP, ConnectWise", max: 60 },
+        { k: "remote_id", label: "ID / Kennung", mono: true, ph: "z. B. 1 234 567 890 oder praxis-pc@ad", max: 100 },
+        { k: "note", label: "Hinweis", ph: "z. B. unbeaufsichtigter Zugriff eingerichtet", max: 200 }],
+      values: r ? { tool: r.tool, label: r.label, remote_id: r.remote_id, note: r.note } : { tool: "teamviewer" },
+      hint: r && r.source === "agent" ? "Vom Agent gemeldet – die Kennung pflegt der Agent, hier lässt sich nur der Hinweis ändern." :
+        "Kennwörter gehören nicht hierher – dafür gibt es die Zugangsdaten im Tresor.",
+      save: async (v) => {
+        await api(r ? `device-remote/${r.id}` : `devices/${id}/remote`, { method: r ? "PATCH" : "POST", body: v });
+        reload();
+      } });
+    box.querySelector("[data-addrem]").onclick = () => remForm(null);
+    $$("[data-editrem]", box).forEach(b => b.onclick = () => remForm(d.remote.find(r => r.id === Number(b.dataset.editrem))));
+    $$("[data-delrem]", box).forEach(b => b.onclick = async () => {
+      const r = d.remote.find(x => x.id === Number(b.dataset.delrem));
+      if (!confirm(`${r.tool_label} ${r.display} entfernen?${r.source === "agent" ? " Meldet der Agent es wieder, erscheint es erneut." : ""}`)) return;
+      try { await api(`device-remote/${r.id}`, { method: "DELETE" }); reload(); } catch (e) { alert(e.message); }
+    });
     $$("[data-editurl]", box).forEach(b => b.onclick = () => urlForm(d.urls.find(u => u.id === Number(b.dataset.editurl))));
     $$("[data-delurl]", box).forEach(b => b.onclick = async () => {
       const u = d.urls.find(x => x.id === Number(b.dataset.delurl));
@@ -962,6 +989,23 @@ $("dlSend").onclick = async () => {
 
 // ---------- Netzwerk-Scan ----------
 const DAY_MS = 86400000;
+// ---------- Fernwartung ----------
+// Nur die Links, die der Server aus einer geprüften Kennung gebaut hat (TeamViewer-Startseite, anydesk:, rustdesk://)
+function remoteLink(r, html, cls = "") {
+  if (!/^(https:\/\/start\.teamviewer\.com\/\d+|anydesk:[\w.@-]+|rustdesk:\/\/[\w-]+)$/.test(r.url || "")) return "";
+  const ext = r.url.startsWith("https:");
+  return `<a class="${cls}" href="${esc(r.url)}"${ext ? ' target="_blank" rel="noopener noreferrer"' : ""} title="Mit ${esc(r.tool_label)} verbinden (${esc(r.display)})" data-web>${html}</a>`;
+}
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-copyrem]");
+  if (!b) return;
+  const id = Number(b.dataset.copyrem);
+  const r = (window.lastDevice && window.lastDevice.remote || []).find(x => x.id === id);
+  if (!r) return;
+  try { await navigator.clipboard.writeText(r.remote_id); b.textContent = "✓"; setTimeout(() => { b.textContent = "⧉"; }, 1200); }
+  catch (err) { prompt("Kennung kopieren:", r.remote_id); }
+});
+
 // ---------- Doppelte Geräte zusammenführen ----------
 async function mergeForm(d, dups, reload) {
   const all = (await api("devices?status=all")).filter(x => x.id !== d.id);

@@ -2,6 +2,20 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.10.0] – 2026-11-19
+
+### Neu
+- **Fernwartung am Gerät:** TeamViewer-, AnyDesk- und RustDesk-IDs sowie beliebige andere Programme (z. B. RDP,
+  Splashtop) mit Kennung und Hinweis. Die ID steht groß und lesbar gruppiert („1 234 567 890“), mit Knopf zum Kopieren
+  und **„Verbinden ↗“** (TeamViewer über start.teamviewer.com, AnyDesk und RustDesk über ihr installiertes Programm);
+  die ersten beiden auch als Knöpfe oben am Gerät und als Symbol in der Geräteliste.
+- **Agent 1.4 liest die IDs selbst aus** – Windows, Linux, macOS und Synology: TeamViewer (Registry bzw.
+  global.conf/Einstellungen), AnyDesk (system.conf, inklusive Alias), RustDesk (RustDesk.toml, inklusive eigenem
+  Server). Wird ein Programm deinstalliert, verschwindet sein Eintrag; von Hand angelegte Einträge bleiben. Kennwörter
+  liest der Agent nie aus und die App speichert hier keine.
+- **Suche** findet Geräte über ihre Fernwartungs-ID – auch mit oder ohne Leerzeichen. Beim Zusammenführen doppelter
+  Geräte wandern die Einträge mit.
+
 ## [0.9.1] – 2026-11-09
 
 ### Sicherheit (aus einem externen Review)

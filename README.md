@@ -11,7 +11,7 @@ Lizenzen, Netzwerkplan und Zugangsdaten (verschlüsselt im Tresor). Sie läuft a
 eigenem Fenster in DSM. Die Daten bleiben beim Kunden; der IT-Dienstleister und eine Vertrauensperson beim Kunden
 haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 
-> **Stand 0.9:** Geräte, Netzwerk mit Netzwerk-Scan, Agent für Server und PCs (Windows, Linux, macOS), Lizenzen,
+> **Stand 0.10:** Geräte, Netzwerk mit Netzwerk-Scan, Agent für Server und PCs (Windows, Linux, macOS), Lizenzen,
 > Ansprechpartner, Zugangsdaten im verschlüsselten Tresor, Fristen-Mail, Notfall-Handbuch als PDF und CSV-Import –
 > siehe [Fahrplan](#fahrplan).
 
@@ -54,6 +54,8 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 - **Netzwerk-Scan** (von Hand oder nachts): findet unbekannte Geräte und legt sie mit einem Klick an, ergänzt MAC und
   Hostname, meldet abweichende MAC-Adressen und Geräte, die länger nicht erreichbar waren. Läuft ohne Root-Rechte und ohne
   Zusatzprogramme, nur in Netzen mit Haken „scannen“ (IPv4, höchstens /22).
+- **Fernwartung:** TeamViewer-, AnyDesk-, RustDesk- und andere Kennungen pro Gerät – mit „Verbinden“ und Kopieren;
+  der Agent trägt sie selbst ein. Kennwörter gehören in den Tresor (Zugangsdaten).
 - **Web-Oberflächen:** pro Gerät beliebig viele Web-Adressen mit Bezeichnung (z. B. „DSM“, „Vaultwarden“, Proxmox
   auf :8006) – als Knöpfe am Gerät, als ↗ in Geräte- und IP-Liste; der Hostname in der IP-Liste ist anklickbar. Ohne
   eigene Adresse baut die App den Link aus den Web-Ports, die der Netzwerk-Scan gefunden hat (gestrichelt).
@@ -69,6 +71,8 @@ haben vollen Zugriff, alle anderen höchstens Lesezugriff ohne Passwörter.
 | ![Geräte](docs/screenshots/geraete.png) | ![Lizenzen](docs/screenshots/lizenzen.png) | ![Kontakte](docs/screenshots/kontakte.png) |
 | **CSV-Import** | **Fristen-Mail** | **Netzwerk-Scan** |
 | ![CSV-Import](docs/screenshots/import.png) | ![Fristen-Mail](docs/screenshots/fristen-mail.png) | ![Netzwerk-Scan](docs/screenshots/netzwerk-scan.png) |
+| **Fernwartung am Gerät** | | |
+| ![Fernwartung](docs/screenshots/fernwartung.png) | | |
 | **Web-Oberflächen am Gerät** | **IP-Liste mit Links** | **Scan durch Agent vor Ort** |
 | ![Web-Oberflächen](docs/screenshots/geraet-web.png) | ![IP-Liste mit Links](docs/screenshots/netzwerk-links.png) | ![Scan durch Agent](docs/screenshots/fernscan.png) |
 | **Vom Agent gemeldet** | **Agenten** | **Agent einrichten** |
@@ -206,6 +210,7 @@ wöchentlichen **Fristen-Mail**.
 | **0.4** ✔ | Komfort: Fristen-Mail (wöchentlich + Stichtage), PDF „Notfall-Handbuch“ (Kontakte, Internet, Netzwerk), CSV-Import für Geräte mit Spaltenzuordnung |
 | **0.5** ✔ | Netzwerk-Scan: neue Geräte übernehmen, MAC/Hostname ergänzen, Abweichungen, „zuletzt online“, nachts automatisch |
 | **0.6** ✔ | Agent für Server und PCs (Windows, Linux, macOS): Hardware, System, Datenträger, Netzwerk, Software, Updates und Dienste per HTTPS, Gerät wird gefunden oder angelegt, Hinweis bei stillen Agenten |
+| **0.10** ✔ | Fernwartung am Gerät (TeamViewer, AnyDesk, RustDesk, andere), vom Agent ausgelesen |
 | **0.9** ✔ | Windows-Produktschlüssel vom Agent (versiegelt im Tresor), Selbstupdate der Agenten |
 | **0.8** ✔ | Agent scannt das Netz vor Ort (entfernte Standorte ohne VPN), Synology DSM als Agent |
 | **0.7** ✔ | Web-Oberflächen pro Gerät (mehrere, mit Bezeichnung), anklickbarer Hostname, automatische Links aus dem Netzwerk-Scan |
@@ -346,6 +351,7 @@ customer's own NAS, in its own DSM window with single sign-on. The user interfac
   Synology DSM can run the agent (scheduled via DSM Task Scheduler).
 - 0.9: Windows product key from the agent (sealed to the vault with X25519, never stored in plain text); agents
   update themselves from the IT documentation (SHA-256 checked).
+- 0.10: remote access IDs per device (TeamViewer, AnyDesk, RustDesk, others) with connect links, read by the agent.
 - Planned: wiki pages, link to the Zeitmanagement helpdesk.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/it-doku/releases) →

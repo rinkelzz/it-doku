@@ -91,7 +91,8 @@ def search(q: str = Query(..., min_length=1, max_length=100), user=Depends(curre
         "(SELECT ip FROM ip_addresses WHERE device_id = d.id ORDER BY id LIMIT 1) AS ip "
         "FROM devices d JOIN device_types t ON t.id = d.type_id WHERE d.name LIKE ? OR d.serial LIKE ? OR d.model LIKE ? "
         "OR d.manufacturer LIKE ? OR d.inventory_no LIKE ? OR d.used_by LIKE ? OR d.room LIKE ? OR d.os LIKE ? "
-        "ORDER BY d.status = 'retired', d.name COLLATE NOCASE LIMIT 8", [like] * 8)]
+        "OR d.id IN (SELECT device_id FROM device_remote WHERE REPLACE(remote_id, ' ', '') LIKE ?) "
+        "ORDER BY d.status = 'retired', d.name COLLATE NOCASE LIMIT 8", [like] * 8 + [like.replace(" ", "")])]
     out["ips"] = [dict(r) for r in conn.execute(
         "SELECT i.id, i.ip, i.mac, i.hostname, i.device_id, d.name AS device_name, n.name AS network_name, i.network_id "
         "FROM ip_addresses i LEFT JOIN devices d ON d.id = i.device_id LEFT JOIN networks n ON n.id = i.network_id "

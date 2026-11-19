@@ -186,6 +186,9 @@ def sanitize(raw: Dict[str, Any]) -> Dict[str, Any]:
                     "error": _s(upd.get("error"), 200)},
         "services": [],
     }
+    from .remote import sanitize as remote_sanitize
+    if "remote_tools" in raw:  # ältere Agenten melden das nicht – dann nichts abgleichen
+        out["remote_tools"] = remote_sanitize(raw.get("remote_tools"))
     from .winlicense import sanitize as win_sanitize
     win = win_sanitize(raw.get("windows_license")) if out["platform"] in ("windows", "") else None
     if win:
@@ -427,6 +430,10 @@ def store_report(conn: sqlite3.Connection, agent: sqlite3.Row, rep: Dict[str, An
     else:
         d = conn.execute("SELECT * FROM devices WHERE id = ?", (device_id,)).fetchone()
         _sync_ips(conn, d, rep)
+    d_row = conn.execute("SELECT * FROM devices WHERE id = ?", (device_id,)).fetchone()
+    if d_row is not None and "remote_tools" in rep:
+        from . import remote
+        remote.sync_from_agent(conn, agent["id"], d_row, rep["remote_tools"])
     win = rep.pop("windows_license", None)
     if win:
         d = conn.execute("SELECT * FROM devices WHERE id = ?", (device_id,)).fetchone()

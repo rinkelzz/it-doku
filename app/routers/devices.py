@@ -14,7 +14,7 @@ from ..db import audit, get_db
 from ..doku import (DEVICE_STATUS, LICENSE_KINDS, attachments, days_until, delete_attachments, diff, get_or_404,
                     history, insert_row, ip_key, log, strip_strings, update_row)
 from ..security import admin_user, current_user
-from .. import weburl
+from .. import remote, weburl
 from ..timeutil import now_utc_str
 from .network import IP_SELECT, ip_out
 
@@ -109,12 +109,15 @@ def list_devices(site_id: Optional[int] = None, type_id: Optional[int] = None,
         like = f"%{q.strip()}%"
         sql += (" AND (d.name LIKE ? OR d.model LIKE ? OR d.manufacturer LIKE ? OR d.serial LIKE ? OR d.inventory_no LIKE ?"
                 " OR d.room LIKE ? OR d.used_by LIKE ? OR d.id IN (SELECT device_id FROM ip_addresses WHERE ip LIKE ?"
-                " OR mac LIKE ? OR hostname LIKE ?) OR d.id IN (SELECT device_id FROM device_urls WHERE url LIKE ? OR label LIKE ?))")
-        args += [like] * 12
+                " OR mac LIKE ? OR hostname LIKE ?) OR d.id IN (SELECT device_id FROM device_urls WHERE url LIKE ? OR label LIKE ?)"
+                " OR d.id IN (SELECT device_id FROM device_remote WHERE REPLACE(remote_id, ' ', '') LIKE ? OR label LIKE ?))")
+        args += [like] * 12 + [like.replace(" ", ""), like]
     rows = [_out(r) for r in conn.execute(sql + " ORDER BY t.sort, d.name COLLATE NOCASE", args)]
     urls = weburl.device_urls(conn, [r["id"] for r in rows])
+    rem = remote.for_devices(conn, [r["id"] for r in rows])
     for r in rows:
         r["urls"] = urls.get(r["id"], [])
+        r["remote"] = rem.get(r["id"], [])
     return rows
 
 
@@ -236,6 +239,7 @@ def device_detail(conn, device_id: int) -> dict:
     out["files"] = attachments(conn, "device", device_id)
     out["history"] = history(conn, "device", device_id)
     out["urls"] = weburl.device_urls(conn, [device_id]).get(device_id, [])
+    out["remote"] = remote.for_devices(conn, [device_id]).get(device_id, [])
     # Vorschläge für „＋ Web-Adresse“: aus Scan-Ports und voll qualifizierten Hostnamen
     ports = weburl.latest_ports(conn, [i["ip"] for i in out["ip_list"]])
     sugg = []
@@ -246,6 +250,64 @@ def device_detail(conn, device_id: int) -> dict:
                 sugg.append(u)
     out["url_suggestions"] = sugg[:6]
     return out
+
+
+# --- Fernwartung (TeamViewer, AnyDesk, RustDesk, andere) ----------------------
+
+class RemoteIn(BaseModel):
+    tool: str = Field(..., max_length=20)
+    label: Optional[str] = Field("", max_length=60)
+    remote_id: str = Field(..., max_length=100)
+    note: Optional[str] = Field("", max_length=200)
+
+
+@router.post("/devices/{device_id}/remote", status_code=201)
+def add_remote(device_id: int, data: RemoteIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    d = get_or_404(conn, "device", device_id)
+    v = remote.validate(data.tool, data.label, data.remote_id)
+    if conn.execute("SELECT 1 FROM device_remote WHERE device_id = ? AND tool = ? AND remote_id = ?",
+                    (device_id, v["tool"], v["remote_id"])).fetchone():
+        raise HTTPException(409, "Diese Kennung ist am Gerät schon eingetragen")
+    cur = conn.execute("INSERT INTO device_remote(device_id, tool, label, remote_id, note, source, created_at) "
+                       "VALUES (?, ?, ?, ?, ?, 'manual', ?)",
+                       (device_id, v["tool"], v["label"], v["remote_id"], (data.note or "").strip(), now_utc_str()))
+    name = v["label"] or remote.TOOLS[v["tool"]]
+    log(conn, admin, "doc_updated", "device", device_id, d["name"], f"Fernwartung hinzugefügt: {name} {remote.pretty(v['tool'], v['remote_id'])}")
+    return remote.out(conn.execute("SELECT * FROM device_remote WHERE id = ?", (cur.lastrowid,)).fetchone())
+
+
+def _remote_row(conn, rid: int):
+    r = conn.execute("SELECT r.*, d.name AS device_name FROM device_remote r JOIN devices d ON d.id = r.device_id WHERE r.id = ?",
+                     (rid,)).fetchone()
+    if not r:
+        raise HTTPException(404, "Eintrag nicht gefunden")
+    return r
+
+
+@router.patch("/device-remote/{rid}")
+def update_remote(rid: int, data: RemoteIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    r = _remote_row(conn, rid)
+    if r["source"] == "agent":
+        # Kennung kommt vom Agent – nur der Hinweis ist änderbar
+        conn.execute("UPDATE device_remote SET note = ?, updated_at = ? WHERE id = ?", ((data.note or "").strip(), now_utc_str(), rid))
+        return {"ok": True}
+    v = remote.validate(data.tool, data.label, data.remote_id)
+    conn.execute("UPDATE device_remote SET tool = ?, label = ?, remote_id = ?, note = ?, updated_at = ? WHERE id = ?",
+                 (v["tool"], v["label"], v["remote_id"], (data.note or "").strip(), now_utc_str(), rid))
+    log(conn, admin, "doc_updated", "device", r["device_id"], r["device_name"],
+        f"Fernwartung geändert: {remote.pretty(r['tool'], r['remote_id'])} → {v['label'] or remote.TOOLS[v['tool']]} "
+        f"{remote.pretty(v['tool'], v['remote_id'])}")
+    return {"ok": True}
+
+
+@router.delete("/device-remote/{rid}")
+def delete_remote(rid: int, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    r = _remote_row(conn, rid)
+    conn.execute("DELETE FROM device_remote WHERE id = ?", (rid,))
+    log(conn, admin, "doc_updated", "device", r["device_id"], r["device_name"],
+        f"Fernwartung entfernt: {r['label'] or remote.TOOLS.get(r['tool'], r['tool'])} {remote.pretty(r['tool'], r['remote_id'])}"
+        + (" (meldet der Agent sie wieder, erscheint sie erneut)" if r["source"] == "agent" else ""))
+    return {"ok": True}
 
 
 # --- Doppelte Geräte zusammenführen ------------------------------------------

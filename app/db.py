@@ -392,6 +392,27 @@ def _m11_windows_lizenz(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_licenses_agent_ref ON licenses(agent_ref) WHERE agent_ref IS NOT NULL")
 
 
+def _m12_fernwartung(conn: sqlite3.Connection) -> None:
+    """Version 0.10: Fernwartungs-Kennungen (TeamViewer, AnyDesk, RustDesk, andere) pro Gerät."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS device_remote (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id   INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    tool        TEXT NOT NULL,                  -- teamviewer | anydesk | rustdesk | other
+    label       TEXT NOT NULL DEFAULT '',       -- Programmname bei „other“
+    remote_id   TEXT NOT NULL,
+    note        TEXT NOT NULL DEFAULT '',
+    version     TEXT NOT NULL DEFAULT '',
+    source      TEXT NOT NULL DEFAULT 'manual', -- manual | agent
+    agent_id    INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_device_remote_device ON device_remote(device_id);
+CREATE INDEX IF NOT EXISTS idx_device_remote_id ON device_remote(remote_id);
+""")
+
+
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_stammdaten,
@@ -404,6 +425,7 @@ MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     9: _m9_bericht_anfordern,
     10: _m10_sicherheit,
     11: _m11_windows_lizenz,
+    12: _m12_fernwartung,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
