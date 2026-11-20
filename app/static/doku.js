@@ -994,8 +994,21 @@ const DAY_MS = 86400000;
 function remoteLink(r, html, cls = "") {
   if (!/^(https:\/\/start\.teamviewer\.com\/\d+|anydesk:[\w.@-]+|rustdesk:\/\/[\w-]+)$/.test(r.url || "")) return "";
   const ext = r.url.startsWith("https:");
-  return `<a class="${cls}" href="${esc(r.url)}"${ext ? ' target="_blank" rel="noopener noreferrer"' : ""} title="Mit ${esc(r.tool_label)} verbinden (${esc(r.display)})" data-web>${html}</a>`;
+  return `<a class="${cls}" href="${esc(r.url)}"${ext ? ' target="_blank" rel="noopener noreferrer"' : " data-proto"} title="Mit ${esc(r.tool_label)} verbinden (${esc(r.display)})" data-web>${html}</a>`;
 }
+// anydesk: / rustdesk:// nicht im eigenen Rahmen öffnen: In DSM läuft die Oberfläche in einem iframe, dessen
+// Navigation zu einem fremden Protokoll Chrome mit „Dieser Inhalt ist blockiert“ quittiert (und die App wäre weg).
+// Stattdessen das oberste Fenster das Protokoll aufrufen lassen – das lädt keine neue Seite, sondern startet nur das Programm.
+function openProto(url) {
+  try { window.top.location.href = url; }
+  catch (err) { window.open(url, "_blank", "noopener"); }
+}
+window.addEventListener("click", (e) => {
+  const a = e.target.closest && e.target.closest("a[data-proto]");
+  if (!a) return;
+  e.preventDefault(); e.stopPropagation();
+  openProto(a.getAttribute("href"));
+}, true);
 document.addEventListener("click", async (e) => {
   const b = e.target.closest("[data-copyrem]");
   if (!b) return;

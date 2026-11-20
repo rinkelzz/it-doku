@@ -2,6 +2,13 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.10.2] – 2026-11-20
+
+### Behoben
+- **Fernwartung:** „Verbinden“ bei AnyDesk und RustDesk zeigte in DSM „Dieser Inhalt ist blockiert“ und die App war weg.
+  Der Aufruf (`anydesk:` / `rustdesk://`) läuft jetzt über das oberste Browserfenster statt über den App-Rahmen – das
+  startet nur das Programm, die Seite bleibt stehen. TeamViewer war nicht betroffen.
+
 ## [0.10.1] – 2026-11-20
 
 ### Behoben
