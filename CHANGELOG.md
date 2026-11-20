@@ -2,6 +2,12 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.10.1] – 2026-11-20
+
+### Behoben
+- **Zugangsdaten:** Ein Klick in das Feld Passwort, 2FA-Geheimnis oder Notiz schloss das Fenster „Neuer Zugang“ bzw.
+  „… bearbeiten“. Die Felder trugen dasselbe Merkmal wie der Schließen-Knopf; jetzt schließen nur noch Knöpfe das Fenster.
+
 ## [0.10.0] – 2026-11-19
 
 ### Neu

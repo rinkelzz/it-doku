@@ -97,7 +97,7 @@ function openForm({ title, fields, values = {}, save, del, extra = "", hint = ""
   const err = card.querySelector("[data-err]");
   const first = card.querySelector("input:not([type=checkbox]), select, textarea");
   if (first) setTimeout(() => first.focus(), 0);
-  $$("[data-x]", card).forEach(b => b.onclick = closeSheet);
+  $$("button[data-x]", card).forEach(b => b.onclick = closeSheet);
   const run = async (keepOpen) => {
     err.textContent = "";
     $$("button", card).forEach(b => { b.disabled = true; });

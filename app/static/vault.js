@@ -252,7 +252,7 @@ async function credForm(c, reload, preset) {
   const editHint = (has) => c && has ? "gespeichert – leer lassen = unverändert" : "";
   const extra = `
     <div class="span2" style="display:grid;gap:4px"><span class="small muted">Passwort 🔒</span>
-      <div class="pwrow"><input data-x="password" type="password" autocomplete="new-password" placeholder="${editHint(c && c.has_password)}">
+      <div class="pwrow"><input data-cx="password" type="password" autocomplete="new-password" placeholder="${editHint(c && c.has_password)}">
         <button type="button" data-eye title="anzeigen">👁</button><button type="button" data-gen>🎲 Erzeugen</button></div>
       <div class="gen hidden" data-genbox>
         <div class="row"><label class="inline">Länge <input type="range" data-len min="8" max="64" value="20"> <b data-lenv>20</b></label>
@@ -262,10 +262,10 @@ async function credForm(c, reload, preset) {
         <small class="muted">Erzeugt im Browser, nicht auf dem Server.</small></div>
       <div class="strength"><i data-str style="width:0"></i></div><small class="muted" data-strt></small>
       ${c && c.has_password ? '<label class="inline small"><input type="checkbox" data-del="password"> Passwort entfernen</label>' : ""}</div>
-    <label class="span2" style="display:grid;gap:4px">2FA-Geheimnis (optional) 🔒 <input data-x="totp" class="mono" autocomplete="off"
+    <label class="span2" style="display:grid;gap:4px">2FA-Geheimnis (optional) 🔒 <input data-cx="totp" class="mono" autocomplete="off"
       placeholder="${c && c.has_totp ? "gespeichert – leer lassen = unverändert" : "Base32-Code oder otpauth://… aus dem QR-Code"}"></label>
     ${c && c.has_totp ? '<label class="inline small span2"><input type="checkbox" data-del="totp"> 2FA entfernen</label>' : ""}
-    <label class="span2" style="display:grid;gap:4px">Notiz 🔒 <textarea data-x="notes" rows="3" placeholder="${c && c.has_notes ? "gespeichert – leer lassen = unverändert (Inhalt über 👁 in der Liste)" : "z. B. Wiederherstellungscodes, Sicherheitsfragen"}"></textarea></label>
+    <label class="span2" style="display:grid;gap:4px">Notiz 🔒 <textarea data-cx="notes" rows="3" placeholder="${c && c.has_notes ? "gespeichert – leer lassen = unverändert (Inhalt über 👁 in der Liste)" : "z. B. Wiederherstellungscodes, Sicherheitsfragen"}"></textarea></label>
     ${c && c.has_notes ? '<label class="inline small span2"><input type="checkbox" data-del="notes"> Notiz entfernen</label>' : ""}
     ${c && c.history ? `<details class="small span2"><summary>Verlauf</summary>${historyHtml(c.history)}</details>` : ""}`;
   const card = openForm({ title: c ? `${c.title} bearbeiten` : "Neuer Zugang", fields,
@@ -276,7 +276,7 @@ async function credForm(c, reload, preset) {
       const [ot, oid] = (v.owner || "").split(":");
       const body = { title: v.title, username: v.username, url: v.url, owner_type: ot || null, owner_id: oid ? Number(oid) : null };
       ["password", "totp", "notes"].forEach(f => {
-        const val = card.querySelector(`[data-x="${f}"]`).value;
+        const val = card.querySelector(`[data-cx="${f}"]`).value;
         const del = card.querySelector(`[data-del="${f}"]`);
         if (del && del.checked) body[f] = "";
         else if (val.trim() !== "" || (!c && val)) body[f] = f === "notes" ? val : val.trim();
@@ -290,7 +290,7 @@ async function credForm(c, reload, preset) {
       await reload();
     },
     del: c && { confirm: `Zugang „${c.title}“ löschen?`, run: async () => { await api(`credentials/${c.id}`, { method: "DELETE" }); await reload(); } } });
-  const pw = card.querySelector('[data-x="password"]');
+  const pw = card.querySelector('[data-cx="password"]');
   const upd = () => {
     const [p, t, col] = pw.value ? strength(pw.value) : [0, "", ""];
     card.querySelector("[data-str]").style.width = p + "%"; card.querySelector("[data-str]").style.background = col;
