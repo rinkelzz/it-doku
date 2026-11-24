@@ -10,19 +10,23 @@ start_daemon() {
     set -- $(find_python)
     PY="$1"; TAG="$2"
     if [ -z "$PY" ]; then
-        log "FEHLER: kein passendes Python gefunden (3.8 bis 3.13 mit sqlite3 und ssl)"
+        tell "Kein passendes Python gefunden (3.8 bis 3.13). Bitte im Paket-Zentrum „Python 3.9“ installieren."
         return 1
     fi
     [ -f "${CONFIG}" ] && . "${CONFIG}"
     export ITD_DATA_DIR="${PKGVAR}"
     export ITD_PORT="${ITD_PORT:-8780}"
+    if ! port_free "$PY" "${ITD_PORT}"; then
+        tell "Port ${ITD_PORT} ist schon belegt – die IT-Dokumentation kann nicht starten. Am einfachsten: Paket deinstallieren und mit einem anderen Port neu installieren (der Assistent fragt danach). Alternativ ITD_PORT in /var/packages/itdoku/var/config.env ändern."
+        return 1
+    fi
     export ITD_HOST="${ITD_HOST:-0.0.0.0}"
     export ITD_PUBLIC_URL ITD_ROOT_PATH ITD_COOKIE_SECURE ITD_TIMEZONE
     export ITD_UI_DIR="${PKGDEST}/ui"
     export ITD_CONFIG_FILE="${CONFIG}"
     PYTHONPATH="$(lib_path "$PY" "$TAG")"
     if [ -z "$PYTHONPATH" ]; then
-        log "FEHLER: keine Bibliotheken für ${TAG} auf $(cpu_name "$PY") im Paket"
+        tell "Für Python ${TAG} auf $(cpu_name "$PY") liegen keine Bibliotheken im Paket."
         return 1
     fi
     export PYTHONPATH
@@ -37,7 +41,11 @@ start_daemon() {
     i=0
     while [ $i -lt 10 ]; do
         sleep 1
-        is_running || { log "Prozess ist direkt beendet – siehe Meldungen oben"; return 1; }
+        if ! is_running; then
+            tell "Die IT-Dokumentation hat sich direkt wieder beendet. Letzte Meldungen:"
+            [ -n "${SYNOPKG_TEMP_LOGFILE:-}" ] && tail -n 5 "${LOGFILE}" >> "${SYNOPKG_TEMP_LOGFILE}"
+            return 1
+        fi
         i=$((i + 1))
         [ $i -ge 2 ] && return 0
     done

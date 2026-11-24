@@ -2,6 +2,16 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.10.3] – 2026-11-24
+
+### Behoben
+- **Installation bei belegtem Port** (Issue #2): Der Assistent prüft jetzt schon vor der Installation, ob der gewählte
+  Port frei ist bzw. nicht von DSM gebraucht wird, und sagt es klar im Paket-Zentrum.
+- Lag von einer früheren Installation noch eine `config.env`, wurde der im Assistenten gewählte Port ignoriert – jetzt
+  wird er übernommen.
+- Startet das Paket nicht (Port belegt, kein Python, Programm beendet sich sofort), zeigt das Paket-Zentrum den Grund
+  und die letzten Protokollzeilen an statt nur „Start fehlgeschlagen“.
+
 ## [0.10.2] – 2026-11-20
 
 ### Behoben

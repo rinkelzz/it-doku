@@ -14,4 +14,17 @@ case "$(cpu_name "$(find_python | cut -d' ' -f1)")" in
             >> "${SYNOPKG_TEMP_LOGFILE:-/dev/stdout}"
         exit 1 ;;
 esac
+
+# Bei einer Neuinstallation den gewählten Port prüfen – sonst startet das Paket später nicht
+if [ "${SYNOPKG_PKG_STATUS:-INSTALL}" != "UPGRADE" ] && [ -n "${wizard_port:-}" ]; then
+    PY=$(find_python | cut -d' ' -f1)
+    if dsm_port "${wizard_port}"; then
+        tell "Port ${wizard_port} wird von DSM selbst benötigt. Bitte im Assistenten einen anderen Port wählen (z. B. 8781)."
+        exit 1
+    fi
+    if ! port_free "$PY" "${wizard_port}"; then
+        tell "Port ${wizard_port} ist auf dieser NAS schon belegt (ein anderes Paket oder ein Container nutzt ihn). Bitte im Assistenten einen anderen Port wählen, z. B. 8781 oder 18780."
+        exit 1
+    fi
+fi
 exit 0

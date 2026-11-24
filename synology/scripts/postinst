@@ -6,7 +6,7 @@ mkdir -p "${PKGVAR}"
 PORT="${wizard_port:-8780}"
 case "$PORT" in ''|*[!0-9]*) PORT=8780 ;; esac
 # Ports, die DSM selbst braucht, nicht zulassen
-case "$PORT" in 80|443|5000|5001|5005|5006|6690|9900|9901) PORT=8780 ;; esac
+dsm_port "$PORT" && PORT=8780
 
 if [ ! -f "${CONFIG}" ]; then
     {
@@ -20,6 +20,14 @@ if [ ! -f "${CONFIG}" ]; then
         echo "# ITD_HOST=127.0.0.1   # nur über die NAS selbst erreichbar (DSM-Fenster, DSM-Reverse-Proxy) – dann keine Agenten im LAN"
         echo "# ITD_DSM_PORTS=5080   # falls DSM auf anderen Ports als 5000/5001 läuft (für die DSM-Passwortprüfung)"
     } > "${CONFIG}"
+elif [ -n "${wizard_port:-}" ]; then
+    # Neu installiert, aber config.env einer früheren Installation ist noch da:
+    # den im Assistenten gewählten Port trotzdem übernehmen
+    if grep -q '^ITD_PORT=' "${CONFIG}"; then
+        sed -i "s/^ITD_PORT=.*/ITD_PORT=${PORT}/" "${CONFIG}"
+    else
+        echo "ITD_PORT=${PORT}" >> "${CONFIG}"
+    fi
 fi
 
 set -- $(find_python)

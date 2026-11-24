@@ -55,3 +55,26 @@ lib_path() {
     [ -d "${PKGDEST}/lib/$2-${cpu}" ] && [ -d "${PKGDEST}/lib/$2" ] && \
         echo "${PKGDEST}/lib/$2-${cpu}:${PKGDEST}/lib/$2:${PKGDEST}"
 }
+
+# Meldung, die das Paket-Zentrum dem Benutzer anzeigt (und zusätzlich ins Protokoll)
+tell() {
+    log "$*"
+    [ -n "${SYNOPKG_TEMP_LOGFILE:-}" ] && echo "$*" >> "${SYNOPKG_TEMP_LOGFILE}"
+}
+
+# 0 = Port $2 ist frei (Prüfung mit Python $1), 1 = belegt
+port_free() {
+    "$1" -c 'import socket, sys
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    s.bind(("0.0.0.0", int(sys.argv[1])))
+except OSError:
+    sys.exit(1)' "$2" 2>/dev/null
+}
+
+# Ports, die DSM selbst braucht
+dsm_port() {
+    case "$1" in 80|443|5000|5001|5005|5006|6690|9900|9901) return 0 ;; esac
+    return 1
+}
